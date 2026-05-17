@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Impulse — Запись продаж</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0f0f0f; color: #e0e0e0;
+      height: 100vh; height: 100dvh;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) 0;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      padding: 12px 16px; display: flex; align-items: center; gap: 12px;
+      border-bottom: 1px solid #2a2a3e; flex-shrink: 0;
+    }
+    .header-logo {
+      width: 36px; height: 36px; min-width: 36px;
+      background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+      border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px;
+    }
+    .header-info { flex: 1; min-width: 0; }
+    .header-info h1 { font-size: 14px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .header-info .status { font-size: 11px; color: #6c5ce7; }
+
+    .progress-bar { background: #1a1a2e; padding: 8px 16px; border-bottom: 1px solid #2a2a3e; flex-shrink: 0; }
+    .progress-track { background: #2a2a3e; border-radius: 10px; height: 5px; overflow: hidden; }
+    .progress-fill { height: 100%; background: linear-gradient(90deg, #6c5ce7, #a29bfe); border-radius: 10px; transition: width 0.5s ease; width: 0; }
+    .progress-label { font-size: 11px; color: #888; margin-top: 4px; text-align: center; }
+
+    .chat-area {
+      flex: 1; overflow-y: auto; padding: 12px 14px;
+      display: flex; flex-direction: column; gap: 8px;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior-y: contain;
+    }
+    .chat-area::-webkit-scrollbar { width: 3px; }
+    .chat-area::-webkit-scrollbar-thumb { background: #3a3a4e; border-radius: 2px; }
+
+    .message {
+      max-width: 85%; padding: 10px 14px; border-radius: 16px;
+      font-size: 14px; line-height: 1.45;
+      animation: fadeIn 0.2s ease;
+      white-space: pre-wrap; word-break: break-word;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .message.bot { align-self: flex-start; background: #1a1a2e; border: 1px solid #2a2a3e; border-bottom-left-radius: 4px; }
+    .message.user { align-self: flex-end; background: linear-gradient(135deg, #6c5ce7, #5a4bd1); color: #fff; border-bottom-right-radius: 4px; }
+
+    .buttons-container { display: flex; flex-wrap: wrap; gap: 6px; max-width: 92%; animation: fadeIn 0.2s ease; align-self: flex-start; }
+    .btn {
+      padding: 10px 14px; background: #1e1e32; border: 1px solid #3a3a5e;
+      border-radius: 12px; color: #a29bfe; font-size: 13.5px;
+      cursor: pointer; transition: all 0.15s; word-break: break-word;
+      min-height: 40px; display: inline-flex; align-items: center;
+    }
+    .btn:hover { background: #2a2a42; border-color: #6c5ce7; }
+    .btn:active { transform: scale(0.96); background: #2a2a42; }
+    .btn.full-width { width: 100%; text-align: center; justify-content: center; }
+
+    .paginated-container { display: flex; flex-direction: column; gap: 5px; max-width: 92%; animation: fadeIn 0.2s ease; align-self: flex-start; }
+    .paginated-item {
+      padding: 10px 14px; background: #1e1e32; border: 1px solid #3a3a5e;
+      border-radius: 12px; color: #a29bfe; font-size: 13.5px;
+      cursor: pointer; transition: all 0.15s;
+      min-height: 40px; display: flex; align-items: center;
+    }
+    .paginated-item:hover { background: #2a2a42; border-color: #6c5ce7; }
+    .paginated-item:active { transform: scale(0.96); }
+    .paginated-nav { display: flex; gap: 8px; margin-top: 4px; }
+    .paginated-nav button { flex: 1; padding: 10px; background: #1a1a2e; border: 1px solid #3a3a5e; border-radius: 10px; color: #888; font-size: 13px; cursor: pointer; min-height: 40px; }
+    .paginated-nav button:hover { border-color: #6c5ce7; color: #a29bfe; }
+    .paginated-nav .page-info { flex: 2; text-align: center; font-size: 12px; color: #666; display: flex; align-items: center; justify-content: center; }
+
+    .input-area {
+      padding: 10px 14px; background: #1a1a2e; border-top: 1px solid #2a2a3e;
+      display: flex; gap: 8px; align-items: center; flex-shrink: 0;
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
+    }
+    .input-area input {
+      flex: 1; padding: 11px 14px; background: #0f0f1a;
+      border: 1px solid #2a2a3e; border-radius: 12px;
+      color: #e0e0e0; font-size: 15px; outline: none;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+    }
+    .input-area input:focus { border-color: #6c5ce7; }
+    .input-area input::placeholder { color: #555; }
+    .send-btn {
+      width: 44px; height: 44px; min-width: 44px;
+      background: linear-gradient(135deg, #6c5ce7, #5a4bd1);
+      border: none; border-radius: 12px; color: #fff;
+      font-size: 18px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.15s;
+    }
+    .send-btn:active { transform: scale(0.93); }
+
+    .file-upload-area {
+      display: none; padding: 10px 14px; background: #1a1a2e;
+      border-top: 1px solid #2a2a3e; flex-shrink: 0;
+    }
+    .file-upload-area.active { display: block; }
+    .file-upload-area label {
+      display: block; padding: 14px; background: #1e1e32;
+      border: 2px dashed #3a3a5e; border-radius: 12px;
+      color: #a29bfe; cursor: pointer; text-align: center;
+      font-size: 14px; transition: border-color 0.2s;
+    }
+    .file-upload-area label:hover { border-color: #6c5ce7; }
+    .file-upload-area input[type="file"] { display: none; }
+    .file-upload-area .preview-container { display: none; align-items: center; gap: 10px; padding: 8px; }
+    .file-upload-area .preview-container.active { display: flex; }
+    .file-upload-area .preview-container img { max-width: 60px; max-height: 60px; border-radius: 8px; object-fit: cover; }
+    .file-upload-area .preview-container .file-info { flex: 1; font-size: 12px; color: #aaa; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-upload-area .preview-container .upload-btn {
+      padding: 10px 18px; background: #6c5ce7; border: none;
+      border-radius: 10px; color: #fff; font-size: 13px; cursor: pointer;
+      white-space: nowrap;
+    }
+    .file-upload-area .preview-container .cancel-btn {
+      padding: 10px 14px; background: #333; border: none;
+      border-radius: 10px; color: #aaa; font-size: 13px; cursor: pointer;
+    }
+
+    .typing { display: none; align-self: flex-start; padding: 12px 16px; background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 16px; border-bottom-left-radius: 4px; }
+    .typing.active { display: flex; gap: 5px; }
+    .typing span { width: 7px; height: 7px; background: #6c5ce7; border-radius: 50%; animation: typing 1.2s infinite; }
+    .typing span:nth-child(2) { animation-delay: 0.2s; }
+    .typing span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4; } 30% { transform: translateY(-6px); opacity: 1; } }
+
+    .welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center; flex: 1; }
+    .welcome-icon { font-size: 52px; margin-bottom: 16px; }
+    .welcome h2 { font-size: 18px; color: #fff; margin-bottom: 8px; }
+    .welcome p { color: #888; font-size: 14px; }
+    .welcome.hidden { display: none; }
+
+    .image-preview-overlay {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.85); z-index: 100;
+      align-items: center; justify-content: center; flex-direction: column;
+      padding: 20px;
+    }
+    .image-preview-overlay.active { display: flex; }
+    .image-preview-overlay img { max-width: 95%; max-height: 80vh; border-radius: 12px; object-fit: contain; }
+    .image-preview-overlay .close-preview {
+      margin-top: 16px; padding: 10px 24px; background: #333;
+      border: none; border-radius: 10px; color: #fff; font-size: 14px; cursor: pointer;
+    }
+
+    /* Mobile optimizations */
+    @media (max-width: 480px) {
+      .message { max-width: 92%; font-size: 13.5px; padding: 9px 12px; }
+      .buttons-container, .paginated-container { max-width: 96%; }
+      .btn, .paginated-item { padding: 11px 12px; font-size: 13px; }
+      .header { padding: 10px 12px; }
+      .header-info h1 { font-size: 13px; }
+      .chat-area { padding: 10px; gap: 7px; }
+      .input-area { padding: 8px 10px; gap: 6px; }
+      .input-area input { padding: 10px 12px; font-size: 16px; }
+      .send-btn { width: 42px; height: 42px; min-width: 42px; }
+    }
+
+    @media (max-width: 360px) {
+      .message { max-width: 95%; font-size: 13px; }
+      .btn, .paginated-item { padding: 9px 10px; font-size: 12.5px; }
+    }
+
+    /* Landscape phone */
+    @media (max-height: 500px) and (orientation: landscape) {
+      .header { padding: 8px 12px; }
+      .header-logo { width: 28px; height: 28px; min-width: 28px; font-size: 14px; }
+      .progress-bar { padding: 4px 12px; }
+      .chat-area { padding: 8px 10px; }
+    }
+
+    /* Touch feedback for all interactive elements */
+    @media (hover: none) {
+      .btn:active, .paginated-item:active { background: #2a2a42; border-color: #6c5ce7; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-logo">⚡</div>
+    <div class="header-info">
+      <h1>Impulse — Запись продаж</h1>
+      <div class="status" id="connectionStatus">Подключение...</div>
+    </div>
+  </div>
+
+  <div class="progress-bar" id="progressBar" style="display:none;">
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-label" id="progressLabel">Шаг 1 из 10</div>
+  </div>
+
+  <div class="chat-area" id="chatArea">
+    <div class="welcome" id="welcomeScreen">
+      <div class="welcome-icon">⚡</div>
+      <h2>Impulse — Запись продаж</h2>
+      <p>Подождите, загрузка...</p>
+    </div>
+  </div>
+
+  <div class="file-upload-area" id="fileUploadArea">
+    <label id="fileLabel">📸 Выберите фото чека<input type="file" id="fileInput" accept="image/*" capture="environment"></label>
+    <div class="preview-container" id="previewContainer">
+      <img id="previewImg" src="">
+      <div class="file-info" id="fileInfo"></div>
+      <button class="upload-btn" id="uploadBtn">📤 Загрузить</button>
+      <button class="cancel-btn" id="cancelFileBtn">✕</button>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <input type="text" id="messageInput" placeholder="Введите сообщение..." autocomplete="off" inputmode="text">
+    <button class="send-btn" id="sendBtn">➤</button>
+  </div>
+
+  <div class="image-preview-overlay" id="imageOverlay">
+    <img id="overlayImg" src="">
+    <button class="close-preview" id="closePreview">Закрыть</button>
+  </div>
+
+  <script src="/webchat/socket.io.js"></script>
+  <script>
+    // Connect Socket.IO - use current origin, path /webchat for nginx proxy
+    const socket = io({
+      path: '/webchat',
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 50,
+      maxHttpBufferSize: 10e6
+    });
+
+    const chatArea = document.getElementById('chatArea');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const connectionStatus = document.getElementById('connectionStatus');
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    const progressBar = document.getElementById('progressBar');
+    const progressFill = document.getElementById('progressFill');
+    const progressLabel = document.getElementById('progressLabel');
+    const fileUploadArea = document.getElementById('fileUploadArea');
+    const fileInput = document.getElementById('fileInput');
+    const fileLabel = document.getElementById('fileLabel');
+    const previewContainer = document.getElementById('previewContainer');
+    const previewImg = document.getElementById('previewImg');
+    const fileInfo = document.getElementById('fileInfo');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const cancelFileBtn = document.getElementById('cancelFileBtn');
+    const imageOverlay = document.getElementById('imageOverlay');
+    const overlayImg = document.getElementById('overlayImg');
+    const closePreview = document.getElementById('closePreview');
+
+    let selectedFile = null;
+
+    // Connection status
+    socket.on('connect', () => {
+      connectionStatus.textContent = '● В сети';
+      connectionStatus.style.color = '#6c5ce7';
+    });
+    socket.on('disconnect', () => {
+      connectionStatus.textContent = '● Отключён';
+      connectionStatus.style.color = '#e74c3c';
+    });
+    socket.on('connect_error', (err) => {
+      connectionStatus.textContent = '● Ошибка: ' + err.message;
+      connectionStatus.style.color = '#e74c3c';
+    });
+
+    // Bot message handler
+    socket.on('bot_message', (data) => {
+      if (welcomeScreen) { welcomeScreen.classList.add('hidden'); progressBar.style.display = 'block'; }
+
+      // Remove typing indicator
+      const typingEl = document.querySelector('.typing.active');
+      if (typingEl) typingEl.remove();
+
+      // Add message
+      addMessage(data.text, 'bot');
+
+      // Update progress
+      if (data.stepNum) {
+        const p = (data.stepNum / 10) * 100;
+        progressFill.style.width = p + '%';
+        progressLabel.textContent = 'Шаг ' + data.stepNum + ' из 10';
+      }
+
+      // Add buttons
+      if (data.buttons && data.buttons.length > 0) {
+        if (data.paginated) {
+          addPaginatedButtons(data.buttons);
+        } else {
+          addButtons(data.buttons);
+        }
+      }
+
+      // File upload
+      if (data.fileUpload) {
+        fileUploadArea.classList.add('active');
+        fileLabel.style.display = 'block';
+        previewContainer.classList.remove('active');
+        selectedFile = null;
+      } else {
+        fileUploadArea.classList.remove('active');
+      }
+
+      // Focus input
+      messageInput.focus();
+      scrollToBottom();
+    });
+
+    // Send message
+    function sendMessage() {
+      const text = messageInput.value.trim();
+      if (!text) return;
+      addMessage(text, 'user');
+      socket.emit('user_message', { text });
+      messageInput.value = '';
+      showTyping();
+      scrollToBottom();
+    }
+    sendBtn.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
+
+    // Add message
+    function addMessage(text, type) {
+      const div = document.createElement('div');
+      div.className = 'message ' + type;
+      div.textContent = text;
+      chatArea.appendChild(div);
+      scrollToBottom();
+    }
+
+    // Add regular buttons
+    function addButtons(buttons) {
+      const container = document.createElement('div');
+      container.className = 'buttons-container';
+      buttons.forEach(btn => {
+        const el = document.createElement('button');
+        el.className = 'btn';
+        el.textContent = btn.text;
+        el.addEventListener('click', () => {
+          addMessage(btn.text, 'user');
+          socket.emit('button_click', { value: btn.value });
+          container.remove();
+          showTyping();
+          scrollToBottom();
+        });
+        container.appendChild(el);
+      });
+      chatArea.appendChild(container);
+      scrollToBottom();
+    }
+
+    // Add paginated buttons
+    function addPaginatedButtons(allButtons) {
+      const PAGE_SIZE = 6;
+      let currentPage = 0;
+      const totalPages = Math.ceil(allButtons.length / PAGE_SIZE);
+
+      const container = document.createElement('div');
+      container.className = 'paginated-container';
+
+      function renderPage() {
+        container.innerHTML = '';
+        const start = currentPage * PAGE_SIZE;
+        const end = Math.min(start + PAGE_SIZE, allButtons.length);
+        const pageButtons = allButtons.slice(start, end);
+
+        pageButtons.forEach(btn => {
+          const el = document.createElement('div');
+          el.className = 'paginated-item';
+          el.textContent = btn.text;
+          el.addEventListener('click', () => {
+            addMessage(btn.text, 'user');
+            socket.emit('button_click', { value: btn.value });
+            container.remove();
+            showTyping();
+            scrollToBottom();
+          });
+          container.appendChild(el);
+        });
+
+        if (totalPages > 1) {
+          const navRow = document.createElement('div');
+          navRow.className = 'paginated-nav';
+
+          if (currentPage > 0) {
+            const prevBtn = document.createElement('button');
+            prevBtn.textContent = '◀️ Назад';
+            prevBtn.addEventListener('click', () => { currentPage--; renderPage(); });
+            navRow.appendChild(prevBtn);
+          }
+
+          const pageInfo = document.createElement('div');
+          pageInfo.className = 'page-info';
+          pageInfo.textContent = (currentPage + 1) + ' / ' + totalPages;
+          navRow.appendChild(pageInfo);
+
+          if (currentPage < totalPages - 1) {
+            const nextBtn = document.createElement('button');
+            nextBtn.textContent = 'Вперёд ▶️';
+            nextBtn.addEventListener('click', () => { currentPage++; renderPage(); });
+            navRow.appendChild(nextBtn);
+          }
+
+          container.appendChild(navRow);
+        }
+      }
+
+      renderPage();
+      chatArea.appendChild(container);
+      scrollToBottom();
+    }
+
+    // Typing indicator
+    function showTyping() {
+      const existing = document.querySelector('.typing');
+      if (existing) existing.remove();
+      const div = document.createElement('div');
+      div.className = 'typing active';
+      div.innerHTML = '<span></span><span></span><span></span>';
+      chatArea.appendChild(div);
+      scrollToBottom();
+    }
+
+    // File handling
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      // Validate size (max 8MB)
+      if (file.size > 8 * 1024 * 1024) {
+        alert('Файл слишком большой. Максимум 8 МБ.');
+        fileInput.value = '';
+        return;
+      }
+
+      selectedFile = file;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        previewImg.src = reader.result;
+        const sizeKb = (file.size / 1024).toFixed(1);
+        fileInfo.textContent = file.name + ' (' + sizeKb + ' КБ)';
+        fileLabel.style.display = 'none';
+        previewContainer.classList.add('active');
+      };
+      reader.readAsDataURL(file);
+    });
+
+    uploadBtn.addEventListener('click', () => {
+      if (!selectedFile) return;
+      addMessage('📸 Фото: ' + selectedFile.name, 'user');
+      showTyping();
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        socket.emit('file_upload', { name: selectedFile.name, type: selectedFile.type, data: reader.result });
+      };
+      reader.readAsDataURL(selectedFile);
+      fileUploadArea.classList.remove('active');
+      selectedFile = null;
+    });
+
+    cancelFileBtn.addEventListener('click', () => {
+      selectedFile = null;
+      fileLabel.style.display = 'block';
+      previewContainer.classList.remove('active');
+      fileInput.value = '';
+    });
+
+    // Image preview overlay
+    closePreview.addEventListener('click', () => {
+      imageOverlay.classList.remove('active');
+    });
+    imageOverlay.addEventListener('click', (e) => {
+      if (e.target === imageOverlay) imageOverlay.classList.remove('active');
+    });
+
+    // Scroll to bottom
+    function scrollToBottom() {
+      requestAnimationFrame(() => { chatArea.scrollTop = chatArea.scrollHeight; });
+    }
+
+    // Prevent iOS zoom on double-tap
+    let lastTouchEnd = 0;
+    document.addEventListener('touchend', (e) => {
+      const now = Date.now();
+      if (now - lastTouchEnd <= 300) e.preventDefault();
+      lastTouchEnd = now;
+    }, { passive: false });
+
+    // Handle viewport changes (keyboard show/hide on mobile)
+    const visualViewport = window.visualViewport;
+    if (visualViewport) {
+      visualViewport.addEventListener('resize', () => {
+        document.body.style.height = visualViewport.height + 'px';
+      });
+    }
+
+    messageInput.focus();
+  </script>
+</body>
+</html>

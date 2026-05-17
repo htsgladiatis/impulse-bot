@@ -1,0 +1,200 @@
+{
+  "research_goal": "Определить корректный способ отправки VK-клавиатур через vk-io library в архитектуре Impulse Bot (multi-adapter) и исправить ошибку 'keyboard contains incorrect JSON' в messages.send",
+
+  "current_understanding": "VK-бот Impulse создан на базе мульти-адаптерной архитектуры. Telegram-версия работает стабильно. VK-адаптер (vk.js) запускается, Long Poll подключается, но при отправке сообщений с inline-клавиатурой VK API возвращает ошибку №100 'keyboard contains incorrect JSON'. Три варианта реализации buildVKKeyboardJSON уже испробованы и все три провалились. Корневая причина не установлена.",
+
+  "missing_context": [
+    "Версия vk-io — неизвестна (4.x использует VKKeyboard class, 5.x использует Keyboard utility, API клавиатур кардинально отличается)",
+    "Полный код controller.js — не видел формирование options для клавиатуры, не знаю точную структуру options.buttons",
+    "Полный код vk.js — видел фрагменты (buildVKKeyboardJSON, sendMessage, handleStart/handleCommand), но не весь файл целиком",
+    "Протокол передачи keyboard из controller → adapter — controller вызывает reply(text, keyboard) где keyboard это что? Объект {buttons, oneTime, inline}? VKKeyboard instance? Массив массивов?",
+    "Что именно передаёт controller в параметр keyboard при вызове reply/replaceMessage — нужно видеть реальные данные",
+    "Работает ли sendMessage БЕЗ клавиатуры — если да, проблема изолирована в keyboard; если нет, проблема глубже",
+    "Какие именно клавиатуры отправляются (стартовое меню, админка, выбор города, точки и т.д.) и в каком формате они формируются в controller.js",
+    "Есть ли в node_modules/vk-io/src экспорт Keyboard — нужно проверить на сервере"
+  ],
+
+  "critical_unknowns": [
+    {
+      "unknown": "Версия vk-io",
+      "impact": "КРИТИЧЕСКИЙ — от версии зависит весь подход к клавиатурам",
+      "why": "vk-io 4.x имеет класс VKKeyboard, vk-io 5.x имеет статический метод Keyboard.builder(). Они несовместимы."
+    },
+    {
+      "unknown": "Структура keyboard параметра в controller.js",
+      "impact": "КРИТИЧЕСКИЙ — не знаю что именно adapter получает от controller",
+      "why": "Если controller передаёт VKKeyboard instance, нужно вызвать .toJSON(). Если передаёт plain object, нужно формировать вручную. Если передаёт undefined — клавиатура не нужна."
+    },
+    {
+      "unknown": "Формат keyboard в messages.send API vk-io",
+      "impact": "КРИТИЧЕСКИЙ — vk-io может сам сериализовать keyboard, а мы дважды сериализуем",
+      "why": "Если vk-io ожидает объект и сам делает JSON.stringify, то наш JSON.stringify создаёт двойную сериализацию → incorrect JSON"
+    },
+    {
+      "unknown": "Работает ли отправка сообщений без клавиатуры",
+      "impact": "ВЫСОКИЙ — позволяет изолировать проблему",
+      "why": "Если sendMessage без keyboard работает — проблема только в клавиатуре. Если не работает — проблема в VK API токене, правах, или другом месте."
+    }
+  ],
+
+  "assumptions_detected": [
+    {
+      "assumption": "VK API принимает keyboard как JSON-строку",
+      "reality": "VK REST API действительно требует JSON-строку, но vk-io library может сам делать сериализацию. Если передать строку в vk-io, она может быть дважды сериализована.",
+      "risk": "Высокий — двойная сериализация = incorrect JSON"
+    },
+    {
+      "assumption": "buildVKKeyboardJSON возвращает правильную структуру VK API keyboard",
+      "reality": "Структура {one_time, inline, buttons: [[{action: {type, label, payload}, color}]]} соответствует VK API, но может не соответствовать тому, что ожидает vk-io wrapper",
+      "risk": "Высокий"
+    },
+    {
+      "assumption": "controller.js передаёт keyboard в формате {buttons: [[{text, payload}]], oneTime, inline}",
+      "reality": "Не видел полный controller.js — это предположение на основе фрагментов",
+      "risk": "Средний"
+    }
+  ],
+
+  "logical_conflicts": [
+    {
+      "conflict": "VKKeyboard is not a constructor vs keyboard contains incorrect JSON",
+      "explanation": "Попытка использовать VKKeyboard (import { VKKeyboard } from 'vk-io') провалилась — значит в данной версии vk-io нет такого экспорта. Но и сырой JSON не принимается. Значит vk-io ожидает другой формат.",
+      "resolution_needed": "Определить точную версию vk-io и её API для клавиатур"
+    },
+    {
+      "conflict": "JSON.stringify(raw object) тоже не работает",
+      "explanation": "Если VK API требует строку, а мы передаём JSON.stringify(valid_keyboard_object), и это не работает — значит либо: (а) vk-io сам сериализует и получается двойная сериализация, (б) структура объекта неверна, (в) проблема не в keyboard вообще",
+      "resolution_needed": "Проверить, делает ли vk-io внутренний JSON.stringify для параметра keyboard"
+    }
+  ],
+
+  "blocking_issues": [
+    {
+      "issue": "Не могу определить версию vk-io на сервере",
+      "status": "БЛОКЕР",
+      "solution": "Выполнить `cd /opt/impulse-bot && node -e \"console.log(require('./node_modules/vk-io/package.json').version)\"` на сервере"
+    },
+    {
+      "issue": "Не видел полный controller.js",
+      "status": "БЛОКЕР",
+      "solution": "Прочитать /opt/impulse-bot/controller.js с сервера"
+    },
+    {
+      "issue": "Не видел полный vk.js",
+      "status": "БЛОКЕР",
+      "solution": "Прочитать /opt/impulse-bot/adapters/vk.js с сервера"
+    },
+    {
+      "issue": "Не знаю, делает ли vk-io внутреннюю сериализацию keyboard",
+      "status": "БЛОКЕР",
+      "solution": "Проверить исходный код vk-io (messages.send) или документацию"
+    }
+  ],
+
+  "required_data_sources": [
+    "Версия vk-io (package.json на сервере)",
+    "Полный код controller.js",
+    "Полный код vk.js (актуальная версия на сервере после всех патчей)",
+    "Документация vk-io для messages.send (параметр keyboard)",
+    "Исходный код vk-io для метода messages.send (node_modules/vk-io/lib/index.js) — как обрабатывается keyboard параметр",
+    "Логи VK-бота при отправке БЕЗ клавиатуры (isolation test)"
+  ],
+
+  "questions": {
+    "project_context": [
+      {
+        "question": "Какова приоритетность VK-бота? Это MVP для быстрого запуска или полноценная замена Telegram-бота?",
+        "purpose": "Определяет допустимый уровень workaround и технического долга"
+      },
+      {
+        "question": "Есть ли дедлайн на запуск VK-бота?",
+        "purpose": "Влияет на глубину исследования vs скорость решения"
+      }
+    ],
+    "business": [
+      {
+        "question": "Сколько сотрудников будут использовать VK-версию? Только те, кто не имеет Telegram, или все?",
+        "purpose": "Определяет критичность бага — если VK-бот для 2-3 человек, можно использовать workaround"
+      }
+    ],
+    "technical": [
+      {
+        "question": "Какая версия vk-io установлена на сервере? (package.json или npm list vk-io)",
+        "purpose": "КРИТИЧЕСКИЙ — определяет весь подход к клавиатурам. vk-io 4.x vs 5.x кардинально различаются.",
+        "priority": "БЛОКЕР"
+      },
+      {
+        "question": "Можно прислать полный код controller.js?",
+        "purpose": "КРИТИЧЕСКИЙ — нужно видеть как формируется keyboard объект перед передачей в adapter.reply()",
+        "priority": "БЛОКЕР"
+      },
+      {
+        "question": "Работает ли отправка сообщений БЕЗ клавиатуры? (Простой текст, без keyboard параметра)",
+        "purpose": "Изолирует проблему — если текст без клавиатуры работает, проблема ТОЛЬКО в keyboard формате",
+        "priority": "ВЫСОКИЙ"
+      },
+      {
+        "question": "Какой community token используется? С какими scope/правами?",
+        "purpose": "Для отправки клавиатур VK API требует определённые права. Если токен без нужных scope — клавиатуры не отправятся.",
+        "priority": "СРЕДНИЙ"
+      },
+      {
+        "question": "Какой код в sendMessage на сервере СЕЙЧАС (после всех sed-патчей)?",
+        "purpose": "Множественные sed-патчи могли сломать код. Нужно видеть актуальное состояние.",
+        "priority": "ВЫСОКИЙ"
+      }
+    ],
+    "research_scope": [
+      {
+        "question": "Нужно ли поддерживать inline-клавиатуры или можно использовать обычные (one_time) клавиатуры?",
+        "purpose": "Inline и обычные клавиатуры имеют разный формат в VK API. Inline — встроенные в сообщение, обычные — заменяют экранную клавиатуру."
+      },
+      {
+        "question": "Какие типы кнопок нужны? Только text? Нужны ли open_link (ссылки) и callback?",
+        "purpose": "Определяет сложность keyboard builder"
+      }
+    ],
+    "market_and_competition": [],
+    "data_sources": [
+      {
+        "question": "Есть ли доступ к серверу через SSH напрямую (не через plink)?",
+        "purpose": "plink с base64 — workaround. Прямой SSH упростит отладку."
+      }
+    ],
+    "previous_attempts": [
+      {
+        "question": "Все три попытки отправки клавиатуры провалились. Можете подтвердить точные ошибки?",
+        "purpose": "Проверить хронологию и точно классифицировать каждую ошибку",
+        "known_data": {
+          "attempt_1": "VKKeyboard constructor — TypeError: VKKeyboard is not a constructor",
+          "attempt_2": "Raw JSON object — ExecuteError: keyboard contains incorrect JSON",
+          "attempt_3": "JSON.stringify(object) — ExecuteError: keyboard contains incorrect JSON (предположительно)"
+        }
+      },
+      {
+        "question": "Пробовали ли отправить сообщение с простым текстом (без клавиатуры)?",
+        "purpose": "Если нет — это первый diagnostic step, который нужно выполнить"
+      }
+    ]
+  },
+
+  "why_each_block_is_needed": {
+    "Версия vk-io": "vk-io 4.x использует VKKeyboard class с методом .toJSON(). vk-io 5.x использует Keyboard.builder() с цепочкой .textRow().oneTime().inline(). Они несовместимы. Без знания версии невозможно написать корректный код.",
+    "Полный controller.js": "Controller формирует keyboard options и передаёт в adapter.reply(). Без знания точной структуры options невозможно написать buildVKKeyboardJSON, которая корректно преобразует входные данные.",
+    "Полный vk.js": "После множественных sed-патчей текущее состояние файла может быть нецелостным. Нужно видеть весь файл для валидации.",
+    "Isolation test (текст без клавиатуры)": "Если простой текст не отправляется — проблема не в клавиатуре, а в VK API токене/правах/соединении. Это исключает целое направление расследования.",
+    "Исходный код vk-io messages.send": "Понять, делает ли vk-io внутренний JSON.stringify для keyboard параметра. Если да — двойная сериализация ломает JSON."
+  },
+
+  "research_readiness_status": "НЕ ГОТОВО — 4 критических блокера. Невозможно провести корректное исследование без определения версии vk-io и полного контекста controller/vk.js.",
+
+  "what_is_needed_before_research": [
+    "1. Определить версию vk-io на сервере (node -e \"console.log(require('./node_modules/vk-io/package.json').version)\")",
+    "2. Прочитать полный controller.js с сервера",
+    "3. Прочитать актуальный vk.js с сервера (после всех патчей)",
+    "4. Выполнить isolation test: отправить сообщение БЕЗ клавиатуры через VK-бота",
+    "5. Проверить исходный код vk-io messages.send — как обрабатывается keyboard параметр"
+  ],
+
+  "expected_next_step_after_answers": "После получения ответов на блокеры: (1) определить версию vk-io → выбрать правильный подход к клавиатуре, (2) проанализировать controller.js → понять формат входных данных, (3) написать корректный buildVKKeyboardJSON с учётом версии vk-io и формата controller, (4) задеплоить и протестировать."
+}

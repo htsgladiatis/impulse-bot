@@ -1,0 +1,39 @@
+=== КОМАНДЫ ДЛЯ PUTTY (скопируй и вставляй по одной) ===
+
+# 1. Установить nginx
+apt update && apt install -y nginx openssl
+
+# 2. Создать SSL сертификат
+mkdir -p /etc/nginx/ssl && openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/ssl/impulse.key -out /etc/nginx/ssl/impulse.crt -subj "/CN=109.69.22.112"
+
+# 3. Создать конфиг nginx
+cat > /etc/nginx/sites-available/impulse << 'EOF'
+server {
+    listen 443 ssl;
+    server_name 109.69.22.112;
+    ssl_certificate /etc/nginx/ssl/impulse.crt;
+    ssl_certificate_key /etc/nginx/ssl/impulse.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    location / {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+EOF
+
+# 4. Активировать конфиг
+ln -sf /etc/nginx/sites-available/impulse /etc/nginx/sites-enabled/ && rm -f /etc/nginx/sites-enabled/default
+
+# 5. Проверить и запустить
+nginx -t && systemctl restart nginx && systemctl enable nginx
+
+# 6. Проверить работу
+curl -sk https://localhost/ | head -5
+
+# 7. Проверить что miniapp отвечает
+curl -sk https://localhost/api/health
+
+=== ПОСЛЕ ЭТОГО: в VK dev.vk.com → Размещение → Base URL: https://109.69.22.112 ===

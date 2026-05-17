@@ -1,0 +1,185 @@
+{
+  "research_goal": "Полная диагностика и исправление ошибки 'keyboard contains incorrect JSON' в VK-боте Impulse Device. Бот построен на архитектуре VK Adapter → Controller, использует vk-io 4.10.1, KeyboardBuilder для построения клавиатур. Ошибка возникает при попытке отправить сообщение с inline-клавиатурой через VK API.",
+
+  "current_understanding": "Корневая проблема уже частично идентифицирована: функция buildVKKeyboard() в adapters/vk.js возвращает объект KeyboardBuilder напрямую. VK API (messages.send) требует параметр keyboard как JSON-строку. Нужно вызвать .toString() на KeyboardBuilder перед передачей в send(). Патч sendMessage уже применён (убран JSON.stringify, добавлен getRandomId), но .toString() не вызывается — VK API получает объект вместо строки. Дополнительно: контроллер передаёт payload как строку ('btn|0'), а vk-io textButton сам делает JSON.stringify(payload) — это работает корректно.",
+
+  "missing_context": [
+    {
+      "item": "Полный стек VK-бота",
+      "detail": "Не видел index.vk.js, package.json, ecosystem.config.js, pm2.config.js. Не знаю точную точку входа и конфигурацию PM2 для VK-бота.",
+      "impact": "Без понимания точки входа и PM2-конфигурации невозможно гарантировать корректный перезапуск после патча."
+    },
+    {
+      "item": "normalizeVKPayload()",
+      "detail": "Функция используется в _normalizeCallback, но не видел её определение. Не знаю как парсится eventPayload из VK callback.",
+      "impact": "Если payload не парсится корректно, контроллер не будет обрабатывать нажатия кнопок."
+    },
+    {
+      "item": "SessionManager",
+      "detail": "Используется в _dispatch, но не видел реализации. Не знаю где хранятся сессии VK-пользователей.",
+      "impact": "Если сессии не сохраняются, многошаговый сценарий продаж не будет работать."
+    },
+    {
+      "item": "Полный контроллер (controllers/sales.js)",
+      "detail": "Видел только grep-вывод с payload-паттернами. Не видел полную логику handle(), _handlePayload(), _handleButtonChoice().",
+      "impact": "Невозможно оценить все edge-cases обработки callback_data."
+    },
+    {
+      "item": "editMessage в VK-адаптере",
+      "detail": "Строка 223-239: editMessage не передаёт keyboard в VK API. Если контроллер пытается редактировать сообщение с новой клавиатурой — клавиатура не обновится.",
+      "impact": "Inline-кнопки редактирования (preview_edit, edit|payments и т.д.) могут не работать."
+    },
+    {
+      "item": "message_event vs message",
+      "detail": "VK inline-кнопки генерируют message_event (callback), а обычные кнопки — message. Не видел полную обработку message_event (ctx.answer отправляет snackbar, но не знаю что дальше).",
+      "impact": "Inline-кнопки (preview_confirm, preview_edit) могут не доходить до контроллера."
+    },
+    {
+      "item": "Текущее состояние рефакторинга",
+      "detail": "Не знаю текущее содержимое файлов на сервере. Возможно были промежуточные правки, которые я не видел.",
+      "impact": "Патч может конфликтовать с предыдущими изменениями."
+    }
+  ],
+
+  "critical_unknowns": [
+    {
+      "question": "Вызывается ли .toString() на KeyboardBuilder перед передачей в VK API?",
+      "why_critical": "Это главная причина ошибки 'keyboard contains incorrect JSON'. VK API messages.send ожидает строку, а получает объект.",
+      "current_evidence": "В sendMessage строка 'const vkKeyboard = buildVKKeyboard(keyboard);' — возвращает объект. VK API получает params.keyboard = объект. Нужно: params.keyboard = vkKeyboard.toString()."
+    },
+    {
+      "question": "Как VK API обрабатывает inline-кнопки через messages.send?",
+      "why_critical": "VK различает обычные (one_time) и inline-клавиатуры. Inline требует 'inline: true' в JSON. buildVKKeyboard устанавливает .inline() если options.inline=true, но не видел чтобы контроллер передавал inline: true.",
+      "current_evidence": "Все кнопки контроллера передаются как {buttons: [...]} без поля inline. Если VK ожидает inline-клавиатуру, а получает обычную — будет ошибка."
+    },
+    {
+      "question": "Работает ли ctx.answer() для message_event корректно?",
+      "why_critical": "VK требует ответ на message_event через messages.sendMessageEventAnswer. Если ctx.answer() не работает, VK покажет ошибку пользователю.",
+      "current_evidence": "В vk.js строка ~104: ctx.answer({ type: 'show_snackbar', text: '...' }).catch(() => {}) — ошибки подавляются."
+    }
+  ],
+
+  "assumptions_detected": [
+    {
+      "assumption": "KeyboardBuilder.toString() возвращает валидный JSON для VK API",
+      "validation_status": "ПОДТВЕРЖДЕНО тестом vk_test.js",
+      "evidence": "toString() вернул: {\"buttons\":[[{\"color\":\"primary\",\"action\":{\"label\":\"Test\",\"payload\":\"{\\\"command\\\":\\\"btn|0\\\"}\",\"type\":\"text\"}}]],\"one_time\":false}"
+    },
+    {
+      "assumption": "getRandomId() работает корректно",
+      "validation_status": "ПОДТВЕРЖДЕНО тестом vk_test.js — возвращает number",
+      "evidence": "random_id type: number"
+    },
+    {
+      "assumption": "Строковый payload ('btn|0') корректно сериализуется в JSON",
+      "validation_status": "ПОДТВЕРЖДЕНО тестом vk_test2.js — vk-io делает JSON.stringify автоматически",
+      "evidence": "payload: '\"btn|0\"' — строка обёрнута в кавычки корректно"
+    },
+    {
+      "assumption": "buildVKKeyboard возвращает KeyboardBuilder объект (не undefined)",
+      "validation_status": "ПОДТВЕРЖДЕНО — при корректном input возвращает объект",
+      "evidence": "typeof kb: object"
+    }
+  ],
+
+  "logical_conflicts": [
+    {
+      "conflict": "sendMessage принимает keyboard из контроллера, но контроллер передаёт {buttons: [...]} — формат-обёртку, а не raw KeyboardBuilder",
+      "resolution": "buildVKKeyboard конвертирует формат контроллера в KeyboardBuilder. Проблема в том, что результат не вызывает .toString()."
+    },
+    {
+      "conflict": "Все примеры payload в контроллере используют строки ('btn|0'), но некоторые кнопки используют payload-объекты через buildVKKeyboard",
+      "resolution": "vk-io textButton автоматически вызывает JSON.stringify на payload, независимо от того строка это или объект. Это работает."
+    }
+  ],
+
+  "blocking_issues": [
+    {
+      "issue": "keyboard contains incorrect JSON",
+      "severity": "КРИТИЧЕСКАЯ — бот не может отправить ни одного сообщения с клавиатурой",
+      "root_cause": "sendMessage передаёт объект KeyboardBuilder вместо JSON-строки в VK API",
+      "fix": "Добавить .toString(): params.keyboard = vkKeyboard.toString(); ИЛИ если keyboard уже undefined — не передавать параметр."
+    }
+  ],
+
+  "required_data_sources": [
+    {
+      "source": "Полный файл adapters/vk.js с сервера",
+      "reason": "Нужно видеть актуальное состояние после предыдущих патчей"
+    },
+    {
+      "source": "index.vk.js — точка входа VK-бота",
+      "reason": "Понять как инициализируется adapter, controller, sessionManager"
+    },
+    {
+      "source": "controllers/sales.js — полный файл",
+      "reason": "Понять полную логику обработки шагов и формирования keyboard"
+    },
+    {
+      "source": "pm2.config.js или ecosystem.config.js",
+      "reason": "Корректная команда перезапуска VK-бота"
+    },
+    {
+      "source": "Логи pm2 после патча",
+      "reason": "Подтвердить что ошибка исправлена"
+    }
+  ],
+
+  "questions": {
+    "project_context": [
+      "Какова приоритетная цель: исправить ошибку клавиатуры или провести полный аудит VK-адаптера?",
+      "После исправления keyboard — какие ещё шаги запланированы для VK-бота?",
+      "Нужно ли привести VK-бота к полному паритету с Telegram-ботом по функционалу?"
+    ],
+    "business": [
+      "Кто является целевой аудиторией VK-бота? Те же менеджеры Impulse Device или другие?",
+      "Есть ли дедлайн на запуск VK-бота в продакшн?",
+      "Сколько пользователей预计将 использовать VK-бот одновременно?"
+    ],
+    "technical": [
+      "Используется ли VK Long Poll или VK Callback API? (Из логов — Long Poll)",
+      "Какой VK Standalone-приложение используется (app_id)? Есть ли необходимые permissions (messages, manage)?",
+      "Нужно ли поддерживать загрузку фото чеков через VK (как через Telegram)? VK API позволяет получать photo attachments.",
+      "Как VK-бот обрабатывает команды /start, /admin, /exit? Через текстовые сообщения или VK-команды?"
+    ],
+    "research_scope": [
+      "Рамки: только исправить keyboard error или также исправить editMessage, добавить inline-клавиатуры, обработку фото?",
+      "Нужно ли тестировать все 10 шагов сценария продаж через VK?",
+      "Должен ли VK-бот использовать те же Google Sheets и ref.json что и Telegram-бот?"
+    ],
+    "market_and_competition": [
+      "Есть ли у конкурентов Impulse Device боты в VK для учёта продаж?",
+      "Какие VK-боты для учёта продаж существуют на рынке?"
+    ],
+    "data_sources": [
+      "Есть ли мониторинг VK API rate limits? (VK: 3 запроса/сек для messages.send)",
+      "Ведётся ли логирование всех VK API вызовов?",
+      "Есть ли тестовый VK-аккаунт для проверки?"
+    ],
+    "previous_attempts": [
+      "Сколько раз уже пытались исправить keyboard error? Какие подходы пробовали?",
+      "Были ли предыдущие версии adapters/vk.js которые работали?",
+      "Какие изменения были внесены перед появлением ошибки?"
+    ]
+  },
+
+  "why_each_block_is_needed": {
+    "Полный adapters/vk.js": "Нужно видеть актуальное состояние файла после предыдущих патчей. Невозможно дать точный diff не зная текущего содержимого.",
+    "index.vk.js": "Точка входа показывает как инициализируются все компоненты. Без неё невозможно гарантировать совместимость патчей.",
+    "controllers/sales.js (полный)": "Контроллер формирует keyboard-обёртки. Нужно убедиться что формат совпадает с ожиданиями buildVKKeyboard.",
+    "pm2 config": "Для корректного перезапуска после деплоя патча.",
+    "Тестовый VK-аккаунт": "Для воспроизведения и верификации исправления в реальном времени."
+  },
+
+  "research_readiness_status": "ЧАСТИЧНО ГОТОВО — корневая причина идентифицирована и протестирована. Нужно: (1) актуальное содержимое vk.js с сервера для формирования точного патча, (2) перезапуск и тест, (3) проверка editMessage для inline-клавиатур.",
+
+  "what_is_needed_before_research": [
+    "Актуальный полный файл adapters/vk.js с сервера",
+    "Файл index.vk.js",
+    "Конфиг pm2 (ecosystem.config.js или pm2.config.js)",
+    "Подтверждение: нужно ли также исправить editMessage для передачи keyboard",
+    "Подтверждение: нужно ли добавить поддержку inline-клавиатур (message_event)"
+  ],
+
+  "expected_next_step_after_answers": "Сформировать и задеплоить финальный патч adapters/vk.js: (1) sendMessage: .toString() на keyboard, (2) editMessage: передача keyboard в VK API, (3) проверка message_event обработки. Перезапустить impulse-vk-bot через pm2, протестировать полный сценарий /start → 10 шагов → отправка."
+}

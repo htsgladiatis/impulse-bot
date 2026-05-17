@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Impulse Device — Продажи</title>
+  <script src="https://unpkg.com/@vkontakte/vk-bridge@2/dist/browser.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --primary: #0077ff;
+      --primary-dark: #005ecb;
+      --bg: #edeef0;
+      --card: #ffffff;
+      --text: #000000;
+      --text-secondary: #818c99;
+      --border: #d7d8db;
+      --success: #4bb34b;
+      --danger: #e64646;
+      --radius: 10px;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Roboto', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 0 0 80px 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .header {
+      background: var(--primary);
+      color: white;
+      padding: 16px;
+      text-align: center;
+      font-size: 18px;
+      font-weight: 600;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header small { font-weight: 400; font-size: 13px; opacity: 0.8; display: block; margin-top: 2px; }
+    .container { padding: 12px; max-width: 600px; margin: 0 auto; }
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    }
+    .card-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .step-indicator {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .step-dot {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 600; color: var(--text-secondary);
+      transition: all 0.3s;
+    }
+    .step-dot.active { background: var(--primary); color: white; transform: scale(1.15); }
+    .step-dot.done { background: var(--success); color: white; }
+    .label { font-size: 13px; color: var(--text-secondary); margin-bottom: 6px; }
+    .input-field {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 16px;
+      outline: none;
+      transition: border-color 0.2s;
+      background: #fafafa;
+    }
+    .input-field:focus { border-color: var(--primary); background: white; }
+    .btn-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+    }
+    .btn-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+    .btn {
+      padding: 12px 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: white;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active { background: var(--primary); color: white; transform: scale(0.97); }
+    .btn.selected { background: var(--primary); color: white; border-color: var(--primary); }
+    .btn-full {
+      width: 100%;
+      padding: 14px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 12px;
+      transition: background 0.2s;
+    }
+    .btn-full:active { background: var(--primary-dark); }
+    .btn-full:disabled { background: var(--border); color: var(--text-secondary); cursor: default; }
+    .btn-success { background: var(--success); }
+    .btn-success:active { background: #3a9a3a; }
+    .btn-danger { background: var(--danger); }
+    .btn-outline {
+      background: transparent;
+      color: var(--primary);
+      border: 1px solid var(--primary);
+    }
+    .item-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .item-row:last-child { border-bottom: none; }
+    .item-name { font-size: 14px; font-weight: 500; }
+    .item-detail { font-size: 13px; color: var(--text-secondary); }
+    .item-total { font-weight: 600; color: var(--primary); }
+    .item-delete {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: #fee;
+      color: var(--danger);
+      border: none;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 6px 0;
+      font-size: 14px;
+    }
+    .summary-row.total { font-weight: 700; font-size: 16px; border-top: 2px solid var(--border); padding-top: 10px; margin-top: 4px; }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-blue { background: #e3f2fd; color: #1565c0; }
+    .spinner {
+      display: inline-block;
+      width: 20px; height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-overlay {
+      position: fixed; inset: 0;
+      background: rgba(255,255,255,0.85);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 200;
+      flex-direction: column; gap: 12px;
+    }
+    .loading-overlay.hidden { display: none; }
+    .toast {
+      position: fixed;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #333;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 24px;
+      font-size: 14px;
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 300;
+      white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+    .hidden { display: none !important; }
+    .form-group { margin-bottom: 14px; }
+    .search-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 8px;
+      outline: none;
+    }
+    .search-input:focus { border-color: var(--primary); }
+    .options-list {
+      max-height: 240px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .option-btn {
+      display: block;
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-bottom: 1px solid #f0f0f0;
+      background: white;
+      text-align: left;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    .option-btn:active { background: #e3f2fd; }
+    .step-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .step-subtitle { font-size: 14px; color: var(--text-secondary); margin-bottom: 16px; }
+    .total-amount { font-size: 32px; font-weight: 800; color: var(--primary); text-align: center; margin: 16px 0; }
+    .success-icon { font-size: 64px; text-align: center; margin: 24px 0; }
+    .success-text { font-size: 20px; font-weight: 700; text-align: center; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    📱 Impulse Device
+    <small id="headerSub">Учёт продаж</small>
+  </div>
+
+  <div class="loading-overlay" id="loader">
+    <div class="spinner"></div>
+    <div style="color:var(--text-secondary)">Загрузка...</div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <div class="container" id="app"></div>
+
+  <script>
+    // --- VK Bridge init ---
+    let userId = null;
+    let refData = null;
+    let session = null;
+
+    async function initApp() {
+      try {
+        if (typeof vkBridge !== 'undefined') {
+          await vkBridge.send('VKWebAppInit');
+          const user = await vkBridge.send('VKWebAppGetUserInfo');
+          userId = user.id;
+          document.getElementById('headerSub').textContent = `${user.first_name} ${user.last_name}`;
+        } else {
+          // Dev mode — use random ID
+          userId = 'dev_' + Math.random().toString(36).slice(2, 8);
+          document.getElementById('headerSub').textContent = 'Режим разработки';
+        }
+      } catch (e) {
+        userId = 'dev_' + Math.random().toString(36).slice(2, 8);
+        document.getElementById('headerSub').textContent = 'Режим разработки';
+      }
+
+      // Load ref data
+      try {
+        const res = await api('/api/ref');
+        if (res.ok) refData = res.data;
+      } catch (e) {
+        toast('Ошибка загрузки справочников');
+      }
+
+      // Load or create session
+      try {
+        const res = await api('/api/state');
+        if (res.ok) session = res.session;
+      } catch (e) {}
+
+      hideLoader();
+      render();
+    }
+
+    // --- API helper ---
+    async function api(url, body) {
+      const opts = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId, ...body }) } : {};
+      const res = await fetch(url, opts);
+      return res.json();
+    }
+
+    // --- UI helpers ---
+    function showLoader() { document.getElementById('loader').classList.remove('hidden'); }
+    function hideLoader() { document.getElementById('loader').classList.add('hidden'); }
+
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 2500);
+    }
+
+    const STEPS = ['terminal_number','manager','channel','city','terminal','cash','cashless','credit','encashment','receipt_confirm','sale_saved','item_product','item_qty','item_price','item_comment','preview'];
+    const STEP_NUMS = { terminal_number:1, manager:2, channel:3, city:4, terminal:5, cash:6, cashless:7, credit:8, encashment:9, receipt_confirm:10 };
+
+    function render() {
+      const app = document.getElementById('app');
+      const step = session ? session.step : 'terminal_number';
+
+      switch (step) {
+        case 'terminal_number': renderTerminalNumber(app); break;
+        case 'manager': renderSelect(app, 'manager', '👤 Шаг 2/10', 'Выберите менеджера', dedup(refData?.managers || []), 3); break;
+        case 'channel': renderSelect(app, 'channel', '📊 Шаг 3/10', 'Выберите канал', refData?.channels || [], 2); break;
+        case 'city': renderSelect(app, 'city', '🏙️ Шаг 4/10', 'Выберите город', refData?.cities || [], 3); break;
+        case 'terminal': renderSelect(app, 'terminal', '📍 Шаг 5/10', 'Выберите точку', refData?.terminals || [], 2, true); break;
+        case 'cash': renderNumberInput(app, 'cash', '💰 Шаг 6/10', 'Введите сумму наличные (за день)', '₽'); break;
+        case 'cashless': renderNumberInput(app, 'cashless', '💳 Шаг 7/10', 'Введите сумму безналичные (за день)', '₽'); break;
+        case 'credit': renderNumberInput(app, 'credit', '🏦 Шаг 8/10', 'Кредит/Рассрочка (за день)', '₽'); break;
+        case 'encashment': renderNumberInput(app, 'encashment', '🚚 Шаг 9/10', 'Введите инкассацию (за день)', '₽'); break;
+        case 'receipt_confirm': renderReceiptConfirm(app); break;
+        case 'waiting_receipt': renderWaitingReceipt(app); break;
+        case 'sale_saved': renderSaleSaved(app); break;
+        case 'item_product': renderSelect(app, 'item_product', '📦 Товар', 'Выберите товар', refData?.products || [], 2); break;
+        case 'item_qty': renderNumberInput(app, 'item_qty', '📦 Количество', 'Введите количество', 'шт'); break;
+        case 'item_price': renderNumberInput(app, 'item_price', '💲 Цена за единицу', 'Введите цену', '₽'); break;
+        case 'item_comment': renderCommentInput(app); break;
+        case 'more_confirm': renderMoreConfirm(app); break;
+        case 'preview': renderPreview(app); break;
+        case 'final': renderFinal(app); break;
+        default: renderTerminalNumber(app);
+      }
+    }
+
+    // --- Step Renderers ---
+    function renderStepIndicator(currentStep) {
+      const current = STEP_NUMS[currentStep] || 0;
+      let html = '<div class="step-indicator">';
+      for (let i = 1; i <= 10; i++) {
+        const cls = i < current ? 'done' : i === current ? 'active' : '';
+        html += `<div class="step-dot ${cls}">${i}</div>`;
+      }
+      html += '</div>';
+      return html;
+    }
+
+    function renderTerminalNumber(app) {
+      app.innerHTML = `
+        ${renderStepIndicator('terminal_number')}
+        <div class="card">
+          <div class="step-title">🔢 Шаг 1/10</div>
+          <div class="step-subtitle">Введите номер терминала</div>
+          <div class="form-group">
+            <input class="input-field" id="inputVal" type="text" placeholder="Например: Т-001" autofocus>
+          </div>
+          <button class="btn-full" onclick="submitText('terminal_number')">Далее →</button>
+        </div>`;
+      setTimeout(() => document.getElementById('inputVal')?.focus(), 100);
+      bindEnter('terminal_number');
+    }
+
+    function renderSelect(app, step, title, subtitle, options, cols, searchable) {
+      const maxButtons = 10;
+      const needPagination = options.length > maxButtons && !searchable;
+
+      if (searchable || options.length > maxButtons) {
+        // Search mode for long lists
+        let html = `
+          ${step !== 'item_product' ? renderStepIndicator(step) : ''}
+          <div class="card">
+            <div class="step-title">${title}</div>
+            <div class="step-subtitle">${subtitle}</div>
+            <input class="search-input" id="searchInput" type="text" placeholder="Поиск..." oninput="filterOptions('${step}')">
+            <div class="options-list" id="optionsList">`;
+        options.forEach((opt, i) => {
+          html += `<button class="option-btn" data-idx="${i}" onclick="selectOption('${step}', ${i})">${opt}</button>`;
+        });
+        html += `</div></div>`;
+        app.innerHTML = html;
+        setTimeout(() => document.getElementById('searchInput')?.focus(), 100);
+      } else {
+        let html = `
+          ${step !== 'item_product' ? renderStepIndicator(step) : ''}
+          <div class="card">
+            <div class="step-title">${title}</div>
+            <div class="step-subtitle">${subtitle}</div>
+            <div class="btn-grid ${cols >= 3 ? 'cols-3' : ''}">`;
+        options.forEach((opt, i) => {
+          html += `<button class="btn" onclick="selectOption('${step}', ${i})">${opt}</button>`;
+        });
+        html += '</div></div>';
+        app.innerHTML = html;
+      }
+    }
+
+    function filterOptions(step) {
+      const query = document.getElementById('searchInput').value.toLowerCase();
+      const btns = document.querySelectorAll('#optionsList .option-btn');
+      btns.forEach(btn => {
+        btn.style.display = btn.textContent.toLowerCase().includes(query) ? '' : 'none';
+      });
+    }
+
+    async function selectOption(step, idx) {
+      showLoader();
+      let res;
+      if (step === 'item_product') {
+        session._currentProduct = refData.products[idx];
+        session.step = 'item_qty';
+        session = session;
+        hideLoader();
+        render();
+        return;
+      }
+      res = await api('/api/step', { step, value: refDataKey(step)[idx] });
+      if (res.ok) { session = res.session; }
+      hideLoader();
+      render();
+    }
+
+    function refDataKey(step) {
+      switch(step) {
+        case 'manager': return dedup(refData.managers);
+        case 'channel': return refData.channels;
+        case 'city': return refData.cities;
+        case 'terminal': return refData.terminals;
+        default: return [];
+      }
+    }
+
+    function renderNumberInput(app, step, title, subtitle, unit) {
+      app.innerHTML = `
+        ${renderStepIndicator(step)}
+        <div class="card">
+          <div class="step-title">${title}</div>
+          <div class="step-subtitle">${subtitle}</div>
+          <div class="form-group">
+            <input class="input-field" id="inputVal" type="text" inputmode="decimal" placeholder="0 ${unit}" autofocus>
+          </div>
+          <button class="btn-full" onclick="submitNumber('${step}')">Далее →</button>
+        </div>`;
+      setTimeout(() => document.getElementById('inputVal')?.focus(), 100);
+      bindEnter(step);
+    }
+
+    function renderCommentInput(app) {
+      app.innerHTML = `
+        <div class="card">
+          <div class="step-title">💬 Комментарий</div>
+          <div class="step-subtitle">Комментарий к товару (или "-" чтобы пропустить)</div>
+          <div class="form-group">
+            <input class="input-field" id="inputVal" type="text" placeholder="-" autofocus>
+          </div>
+          <button class="btn-full" onclick="submitComment()">Далее →</button>
+        </div>`;
+      setTimeout(() => document.getElementById('inputVal')?.focus(), 100);
+      document.getElementById('inputVal').addEventListener('keydown', e => { if (e.key === 'Enter') submitComment(); });
+    }
+
+    function renderReceiptConfirm(app) {
+      app.innerHTML = `
+        ${renderStepIndicator('receipt_confirm')}
+        <div class="card">
+          <div class="step-title">📸 Шаг 10/10</div>
+          <div class="step-subtitle">Загрузить фото чека?</div>
+          <button class="btn-full" onclick="skipReceipt()" style="margin-bottom:8px;background:var(--success)">✅ Нет, продолжить</button>
+          <button class="btn-full btn-outline" onclick="startPhotoUpload()">📸 Да, загрузить фото</button>
+        </div>`;
+    }
+
+    function renderWaitingReceipt(app) {
+      app.innerHTML = `
+        <div class="card">
+          <div class="step-title">📸 Загрузка фото</div>
+          <div class="step-subtitle">Выберите фото чека</div>
+          <input type="file" id="photoInput" accept="image/*" capture="environment" style="margin:12px 0">
+          <button class="btn-full" onclick="submitPhoto()">📤 Загрузить</button>
+          <button class="btn-full btn-outline" onclick="skipReceipt()" style="margin-top:8px">⏭️ Пропустить</button>
+        </div>`;
+    }
+
+    function renderSaleSaved(app) {
+      app.innerHTML = `
+        <div class="card" style="text-align:center">
+          <div class="success-icon">✅</div>
+          <div class="success-text">Продажа записана!</div>
+          <p style="color:var(--text-secondary);margin-bottom:16px">
+            ${session.terminalNumber} • ${session.manager} • ${session.city}<br>
+            Итого: <strong>${calcTotal()} ₽</strong>
+          </p>
+          <button class="btn-full" onclick="startItems()">📦 Добавить товары</button>
+          <button class="btn-full btn-outline" onclick="finishSession()">🏁 Завершить</button>
+        </div>`;
+    }
+
+    function renderMoreConfirm(app) {
+      app.innerHTML = `
+        <div class="card">
+          <div class="step-title">📦 Ещё товар?</div>
+          <div class="step-subtitle">Товаров добавлено: ${session.items.length}</div>
+          <button class="btn-full" onclick="startProductSelect()" style="margin-bottom:8px">✅ Да, ещё товар</button>
+          <button class="btn-full btn-outline" onclick="goPreview()">📋 Проверить отчёт</button>
+        </div>`;
+    }
+
+    function renderPreview(app) {
+      const items = session.items || [];
+      let itemsHtml = '';
+      items.forEach((it, i) => {
+        itemsHtml += `
+          <div class="item-row">
+            <div>
+              <div class="item-name">${it.productName}</div>
+              <div class="item-detail">${it.quantity} × ${it.unitPrice} ₽${it.comment ? ' • ' + it.comment : ''}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="item-total">${it.lineTotal} ₽</span>
+              <button class="item-delete" onclick="removeItem(${i})">×</button>
+            </div>
+          </div>`;
+      });
+
+      const totalRev = calcTotal();
+      const itemsTotal = items.reduce((s, it) => s + (it.lineTotal || 0), 0);
+
+      app.innerHTML = `
+        <div class="card">
+          <div class="card-title">📊 Предпросмотр</div>
+          <div class="summary-row"><span>🔢 Терминал</span><span><strong>${session.terminalNumber}</strong></span></div>
+          <div class="summary-row"><span>👤 Менеджер</span><span>${session.manager}</span></div>
+          <div class="summary-row"><span>📊 Канал</span><span>${session.channel}</span></div>
+          <div class="summary-row"><span>🏙️ Город</span><span>${session.city}</span></div>
+          <div class="summary-row"><span>📍 Точка</span><span>${session.terminal}</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">💰 Суммы</div>
+          <div class="summary-row"><span>Наличные</span><span>${session.cash || 0} ₽</span></div>
+          <div class="summary-row"><span>Безналичные</span><span>${session.cashless || 0} ₽</span></div>
+          <div class="summary-row"><span>Кредит/Рассрочка</span><span>${session.credit || 0} ₽</span></div>
+          <div class="summary-row"><span>Инкассация</span><span>${session.encashment || 0} ₽</span></div>
+          <div class="summary-row total"><span>Итого выручка</span><span>${totalRev} ₽</span></div>
+        </div>
+        <div class="card">
+          <div class="card-title">📦 Товары (${items.length})</div>
+          ${itemsHtml || '<p style="color:var(--text-secondary);font-size:14px">Товаров пока нет</p>'}
+          ${items.length > 0 ? `<div class="summary-row total"><span>Сумма товаров</span><span>${itemsTotal} ₽</span></div>` : ''}
+          <button class="btn-full btn-outline" onclick="startProductSelect()" style="margin-top:12px">➕ Добавить товар</button>
+        </div>
+        <button class="btn-full btn-success" onclick="finalSubmit()">✅ Подтвердить и отправить</button>
+        <button class="btn-full btn-outline" onclick="resetSession()" style="margin-top:8px;color:var(--danger);border-color:var(--danger)">❌ Отменить</button>`;
+    }
+
+    function renderFinal(app) {
+      app.innerHTML = `
+        <div class="card" style="text-align:center">
+          <div class="success-icon">🎉</div>
+          <div class="success-text">Данные отправлены!</div>
+          <p style="color:var(--text-secondary);margin-bottom:24px">Продажа успешно записана в Google Sheets</p>
+          <button class="btn-full" onclick="resetSession()">📝 Новая запись</button>
+        </div>`;
+    }
+
+    // --- Actions ---
+    async function submitText(step) {
+      const val = document.getElementById('inputVal').value.trim();
+      if (!val) { toast('Введите значение'); return; }
+      showLoader();
+      const res = await api('/api/step', { step, value: val });
+      if (res.ok) session = res.session;
+      else toast(res.error || 'Ошибка');
+      hideLoader();
+      render();
+    }
+
+    async function submitNumber(step) {
+      const raw = document.getElementById('inputVal').value.trim();
+      const num = parseFloat(raw.replace(',', '.').replace(/\s/g, ''));
+      if (isNaN(num)) { toast('Введите число'); return; }
+
+      if (step === 'item_qty') {
+        session._currentQty = num;
+        session.step = 'item_price';
+        hideLoader();
+        render();
+        return;
+      }
+      if (step === 'item_price') {
+        session._currentPrice = num;
+        session.step = 'item_comment';
+        render();
+        return;
+      }
+
+      showLoader();
+      const res = await api('/api/step', { step, value: num });
+      if (res.ok) session = res.session;
+      else toast(res.error || 'Ошибка');
+      hideLoader();
+      render();
+    }
+
+    async function submitComment() {
+      const comment = document.getElementById('inputVal').value.trim();
+      showLoader();
+      const res = await api('/api/add-item', {
+        productName: session._currentProduct,
+        quantity: session._currentQty,
+        unitPrice: session._currentPrice,
+        comment: comment === '-' ? '' : comment,
+      });
+      if (res.ok) {
+        session.items = res.items;
+        session._currentProduct = null;
+        session._currentQty = null;
+        session._currentPrice = null;
+      }
+      session.step = 'more_confirm';
+      hideLoader();
+      render();
+    }
+
+    async function skipReceipt() {
+      showLoader();
+      const res = await api('/api/step', { step: 'receipt_confirm', value: 'skip' });
+      if (res.ok) session = res.session;
+      hideLoader();
+      render();
+    }
+
+    function startPhotoUpload() {
+      session.step = 'waiting_receipt';
+      render();
+    }
+
+    async function submitPhoto() {
+      const input = document.getElementById('photoInput');
+      if (!input.files.length) { toast('Выберите фото'); return; }
+      toast('📸 Фото сохранено (загрузка через API в разработке)');
+      session.receiptUrl = '';
+      showLoader();
+      const res = await api('/api/step', { step: 'receipt_confirm', value: 'skip' });
+      if (res.ok) session = res.session;
+      hideLoader();
+      render();
+    }
+
+    function startItems() {
+      session.step = 'item_product';
+      render();
+    }
+
+    function startProductSelect() {
+      session.step = 'item_product';
+      render();
+    }
+
+    function goPreview() {
+      session.step = 'preview';
+      render();
+    }
+
+    async function removeItem(idx) {
+      showLoader();
+      const res = await api('/api/remove-item', { index: idx });
+      if (res.ok) session.items = res.items;
+      hideLoader();
+      render();
+    }
+
+    async function finalSubmit() {
+      showLoader();
+      const res = await api('/api/final');
+      hideLoader();
+      if (res.ok) {
+        session = { step: 'final', items: [] };
+        render();
+      } else {
+        toast(res.error || 'Ошибка отправки');
+      }
+    }
+
+    function finishSession() {
+      session = { step: 'final', items: [] };
+      render();
+    }
+
+    async function resetSession() {
+      showLoader();
+      await api('/api/reset');
+      session = { step: 'terminal_number', items: [] };
+      hideLoader();
+      render();
+    }
+
+    function bindEnter(step) {
+      const input = document.getElementById('inputVal');
+      if (input) {
+        input.addEventListener('keydown', e => {
+          if (e.key === 'Enter') {
+            if (step === 'item_qty' || step === 'item_price') submitNumber(step);
+            else if (step === 'terminal_number') submitText(step);
+            else submitText(step);
+          }
+        });
+      }
+    }
+
+    // --- Helpers ---
+    function calcTotal() {
+      return (session.cash || 0) + (session.cashless || 0) + (session.credit || 0) + (session.encashment || 0);
+    }
+
+    function dedup(arr) {
+      return [...new Set(arr)];
+    }
+
+    // --- Init ---
+    initApp();
+  </script>
+</body>
+</html>

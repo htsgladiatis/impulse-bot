@@ -1,0 +1,38 @@
+=== TEST /start ===
+[REPLY text]: 📅 Дата: 16.05.2026, 14:55:15
+
+🔢 Шаг 1/10 — Введите номер терминала:
+[REPLY kb]: none
+Session after /start: {
+  "userId": "vk_12345",
+  "platform": "vk",
+  "step": "terminal_number",
+  "payload": {},
+  "botMessageIds": [],
+  "isEditMode": false,
+  "editingField": null,
+  "lastActivityAt": 1778932515500,
+  "timestamp": "16.05.2026, 14:55:15",
+  "items": [],
+  "lastMsgId": null
+}
+
+=== TEST terminal_number input ===
+[REPLY text]: ✅ Номер: Т123
+
+👤 Шаг 2/10 — Выберите менеджера:
+[REPLY kb]: {"buttons":[[{"text":"Дашивец П.","payload":"btn|0"},{"text":"Гаранина Н.","payload":"btn|1"},{"text":"Кияева Н.","payload":"btn|2"}],[{"text":"Котова В.","payload":"btn|3"},{"text":"Долгина М.","payl
+Session after terminal: {
+  "userId": "vk_12345",
+  "platform": "vk",
+  "step": "manager",
+  "payload": {},
+  "botMessageIds": [],
+  "isEditMode": false,
+  "editingField": null,
+  "lastActivityAt": 1778932515500,
+  "timestamp": "16.05.2026, 14:55:15",
+  "items": [],
+  "lastMsgId": null,
+  "terminalNumber": "Т123"
+}

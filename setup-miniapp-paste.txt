@@ -1,0 +1,25 @@
+=== КОМАНДЫ ДЛЯ PUTTY — запуск Mini App ===
+
+# 1. Проверить что miniapp файлы есть на сервере
+ls -la /opt/impulse-bot/miniapp/
+
+# 2. Если папки miniapp нет — создать и скопировать содержимое
+# (это нужно делать локально через pscp в CMD)
+# pscp -i C:\Users\user\.ssh\id_rsa.ppk -r C:\Users\user\Desktop\cline\impulse-bot\miniapp root@109.69.22.112:/opt/impulse-bot/miniapp
+
+# 3. Проверить что express установлен
+cd /opt/impulse-bot && npm ls express 2>/dev/null || npm install
+
+# 4. Запустить miniapp через PM2
+cd /opt/impulse-bot && pm2 start pm2.config.js --only impulse-miniapp
+
+# 5. Проверить статус
+pm2 status
+
+# 6. Проверить health check
+curl -s http://localhost:3001/health
+
+# 7. Проверить через HTTPS (через nginx)
+curl -sk https://localhost/health
+
+# 8. Если всё ок — в VK: Base URL = https://109.69.22.112

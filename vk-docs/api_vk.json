@@ -1,0 +1,1 @@
+{"error":{"error_code":15,"error_msg":"Access denied: token required","request_params":[{"key":"page","value":"mini-apps\/settings\/general"},{"key":"lang","value":"ru"},{"key":"v","value":"5.131"},{"key":"method","value":"documentation.getPage"},{"key":"oauth","value":"1"}]}}

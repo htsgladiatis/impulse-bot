@@ -1,0 +1,23 @@
+=== Деплой обновлённого webchat на сервер ===
+
+# 1. Скопируй файлы через PuTTY (выполни на своём компьютере):
+pscp -r C:\Users\user\Desktop\cline\impulse-bot\webchat\server.js root@109.69.22.112:/opt/impulse-bot/webchat/server.js
+pscp -r C:\Users\user\Desktop\cline\impulse-bot\webchat\public\index.html root@109.69.22.112:/opt/impulse-bot/webchat/public/index.html
+
+# Или скопируй содержимое файлов вручную через WinSCP:
+# - C:\Users\user\Desktop\cline\impulse-bot\webchat\server.js → /opt/impulse-bot/webchat/server.js
+# - C:\Users\user\Desktop\cline\impulse-bot\webchat\public\index.html → /opt/impulse-bot/webchat/public/index.html
+
+# 2. На сервере (PuTTY) — перезапустить webchat:
+cd /opt/impulse-bot && pm2 restart impulse-webchat
+
+# Если PM2 процесс называется иначе:
+pm2 list
+pm2 restart <id_или_имя>
+
+# 3. Проверить:
+pm2 logs impulse-webchat --lines 20
+curl -s http://localhost:3002/health
+
+# 4. Проверить в браузере:
+# https://109.69.22.112:3002

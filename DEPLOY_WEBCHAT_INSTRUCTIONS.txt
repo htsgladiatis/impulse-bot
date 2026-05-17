@@ -1,0 +1,91 @@
+=============================================================
+  ДЕПЛОЙ WEBCHAT v2 — Инструкция
+  Socket.IO path=/webchat + nginx WebSocket proxy
+=============================================================
+
+=== ШАГ 1: Скопировать файлы на сервер ===
+Выполни в CMD на своём ПК:
+
+pscp C:\Users\user\Desktop\cline\impulse-bot\webchat\server.js root@109.69.22.112:/opt/impulse-bot/webchat/server.js
+pscp C:\Users\user\Desktop\cline\impulse-bot\webchat\public\index.html root@109.69.22.112:/opt/impulse-bot/webchat/public/index.html
+
+Или через WinSCP скопируй:
+  Локально:  C:\Users\user\Desktop\cline\impulse-bot\webchat\
+  На сервере: /opt/impulse-bot/webchat/
+
+=== ШАГ 2: Подключись к серверу через PuTTY ===
+ssh root@109.69.22.112
+
+=== ШАГ 3: Обнови nginx конфиг ===
+
+cat > /etc/nginx/sites-enabled/default << 'EOF'
+server {
+    listen 80;
+    server_name 109.69.22.112;
+
+    client_max_body_size 20m;
+
+    # Webchat Socket.IO - websocket support
+    location /webchat {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+        proxy_buffering off;
+    }
+
+    # Webchat static files
+    location / {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Telegram MiniApp on port 3001
+    location /miniapp {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+EOF
+
+=== ШАГ 4: Проверь и перезапусти nginx ===
+
+nginx -t
+systemctl reload nginx
+
+=== ШАГ 5: Перезапусти webchat через PM2 ===
+
+cd /opt/impulse-bot
+pm2 restart impulse-webchat
+# Если не найден процесс:
+# pm2 start pm2.config.js --only impulse-webchat
+
+=== ШАГ 6: Проверь ===
+
+pm2 status
+curl -s http://localhost:3002/health
+
+=== ШАГ 7: Открой в браузере ===
+
+http://109.69.22.112/
+
+Проверь:
+1. Страница загружается
+2. Подключение показывает "● В сети"
+3. Бот отправляет первое сообщение
+4. Кнопки работают
+5. Можно ввести текст и отправить
+
+=============================================================

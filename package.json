@@ -1,0 +1,29 @@
+{
+  "name": "impulse-device-sales-bot",
+  "version": "2.0.0",
+  "description": "Impulse Device sales bot: Telegram now, VK-ready architecture scaffold.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "check": "node --check index.js && node --check index.v2.js && node --check bot.js && node --check ref.js && node --check smoke-check.js && node --check adapters/IBotAdapter.js && node --check adapters/telegram.js && node --check adapters/vk.js && node --check core/SessionManager.js && node --check core/StateMachine.js && node --check core/MessageReplacer.js && node --check controllers/sales.js && node --check controllers/cart.js && node --check controllers/admin.js && node --check controllers/report.js && node --check services/googleSheets.js && node --check services/yandexDisk.js && node --check services/dataService.js && node --check services/auth.js && node --check services/refDictionary.js && node --check utils/logger.js && node --check utils/validators.js",
+    "smoke": "node smoke-check.js",
+    "start-v2": "node index.v2.js"
+  },
+  "dependencies": {
+    "@vk-io/scenes": "latest",
+    "@vk-io/session": "latest",
+    "exceljs": "latest",
+    "express": "latest",
+    "googleapis": "latest",
+    "node-fetch": "latest",
+    "node-telegram-bot-api": "latest",
+    "vk-io": "latest",
+    "winston": "latest"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "ssh2": "^1.17.0"
+  }
+}

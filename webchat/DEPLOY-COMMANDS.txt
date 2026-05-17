@@ -1,0 +1,49 @@
+=====================================================
+  IMPULSE WEBCHAT — КОМАНДЫ ДЛЯ ДЕПЛОЯ
+=====================================================
+
+1) СКОПИРОВАТЬ ФАЙЛЫ НА СЕРВЕР (через PuTTY pscp):
+
+pscp -r C:\Users\user\Desktop\cline\impulse-bot\webchat root@109.69.22.112:/opt/impulse-bot/webchat
+
+(Или через WinSCP: скопируй папку webchat в /opt/impulse-bot/)
+
+2) НА СЕРВЕРЕ (через PuTTY):
+
+# Установить зависимости
+cd /opt/impulse-bot/webchat && npm install --production
+
+# Запустить через PM2
+cd /opt/impulse-bot && pm2 start webchat/server.js --name impulse-webchat
+
+# Проверить
+pm2 status
+curl -s http://localhost:3002/health
+
+# Сохранить PM2 конфиг
+pm2 save
+
+3) NGINX — ДОБАВИТЬ LOCATION:
+
+nano /etc/nginx/sites-available/impulse.is-a.dev
+
+# Добавить в server блок (после location для miniapp):
+
+    # Webchat
+    location /webchat/ {
+        proxy_pass http://127.0.0.1:3002/;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+    }
+
+# Проверить и перезагрузить nginx
+nginx -t && systemctl reload nginx
+
+4) ПРОВЕРИТЬ:
+   https://impulse.is-a.dev/webchat/

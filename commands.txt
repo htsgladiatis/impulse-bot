@@ -1,0 +1,38 @@
+pm2 status
+echo "---LOGS---"
+pm2 logs impulse-vk-bot --lines 30 --nostream 2>/dev/null || echo "Бот impulse-vk-bot не найден в PM2"
+echo "---FILES---"
+ls -la /opt/impulse-vk-bot/adapters/ 2>/dev/null || echo "Директория /opt/impulse-vk-bot не найдена"
+echo "---CHECK_ADAPTER---"
+if [ -f /opt/impulse-vk-bot/adapters/vk.js ]; then
+    echo "Файл adapters/vk.js существует"
+    echo "Размер: $(wc -c < /opt/impulse-vk-bot/adapters/vk.js) байт"
+    echo "Проверка наличия serializeVKKeyboard:"
+    grep -q "serializeVKKeyboard" /opt/impulse-vk-bot/adapters/vk.js && echo "serializeVKKeyboard найдена" || echo "serializeVKKeyboard НЕ найдена"
+    echo "Проверка наличия message_event handler:"
+    grep -q "message_event" /opt/impulse-vk-bot/adapters/vk.js && echo "message_event handler найден" || echo "message_event handler НЕ найден"
+    echo "Проверка наличия messageQueue:"
+    grep -q "messageQueue" /opt/impulse-vk-bot/adapters/vk.js && echo "messageQueue найден" || echo "messageQueue НЕ найден"
+else
+    echo "Файл adapters/vk.js не найден"
+fi
+echo "---CHECK_ERRORS---"
+ERROR_911=$(pm2 logs impulse-vk-bot --lines 100 --nostream 2>/dev/null | grep -c "911" || echo "0")
+echo "Ошибок 911: $ERROR_911"
+if [ "$ERROR_911" -gt 0 ]; then
+    echo "Последние ошибки 911:"
+    pm2 logs impulse-vk-bot --lines 100 --nostream 2>/dev/null | grep "911" | tail -5
+fi
+echo "---CHECK_SYNTAX---"
+if [ -f /opt/impulse-vk-bot/adapters/vk.js ]; then
+    cd /opt/impulse-vk-bot
+    SYNTAX_CHECK=$(node --check adapters/vk.js 2>&1)
+    if [ $? -eq 0 ]; then
+        echo "Синтаксис OK"
+    else
+        echo "Ошибка синтаксиса:"
+        echo "$SYNTAX_CHECK"
+    fi
+else
+    echo "Файл не найден"
+fi
