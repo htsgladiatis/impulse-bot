@@ -58,7 +58,7 @@ class SalesController {
 
     if (text === '/start') {
       Object.assign(session, this.createInitialSession(ctx.platform));
-      await ctx.reply(`📅 Дата: ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}\n\n🔢 Шаг 1/10 — Введите номер терминала:`);
+      await ctx.reply(`📅 Дата: ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}\n\n🔢 Шаг 1/11 — Введите номер терминала:`);
       return;
     }
 
@@ -87,14 +87,15 @@ class SalesController {
       username: session.username, terminalNumber: session.terminalNumber, manager: session.manager,
       channel: session.channel, city: session.city, terminal: session.terminal,
       cash: session.cash || 0, cashless: session.cashless || 0, credit: session.credit || 0,
-      encashment: session.encashment || 0, totalRevenue: report.calculateTotalRevenue(session),
+      encashment: session.encashment || 0, businessTripAllowance: session.businessTripAllowance || 0,
+      totalRevenue: report.calculateTotalRevenue(session),
       receiptUrl: session.receiptUrl || '',
     };
   }
 
   formatSaleSavedMessage(session) {
     const t = report.calculateTotalRevenue(session);
-    return `✅ Продажа записана!\n\n📅 ${session.timestamp}\n🔢 Терминал #${session.terminalNumber} | 📍 ${session.terminal}\n👤 ${session.manager} | 📊 ${session.channel}\n🏙️ ${session.city}\n💰 Налич: ${session.cash} | 💳 Безнал: ${session.cashless}\n🏦 Кредит: ${session.credit} | 🚚 Инкассация: ${session.encashment}\n📊 Итого: ${t} ₽\n\n📦 Теперь добавим товары...`;
+    return `✅ Продажа записана!\n\n📅 ${session.timestamp}\n🔢 Терминал #${session.terminalNumber} | 📍 ${session.terminal}\n👤 ${session.manager} | 📊 ${session.channel}\n🏙️ ${session.city}\n💰 Налич: ${session.cash} | 💳 Безнал: ${session.cashless}\n🏦 Кредит: ${session.credit} | 🚚 Инкассация: ${session.encashment}\n🧳 Командировка: ${session.businessTripAllowance || 0}\n📊 Итого: ${t} ₽\n\n📦 Теперь добавим товары...`;
   }
 
   async _handlePhoto(ctx, session, photo) {
@@ -128,7 +129,7 @@ class SalesController {
       if (action === 'forward') session._page = (session._page || 0) + 1;
       else if (action === 'back') session._page = Math.max(0, (session._page || 0) - 1);
       const r = await ref.getRef();
-      await ctx.reply('📍 Шаг 5/10 — Выберите точку (название):', paginatedButtons(r.terminals, session._page || 0, 10));
+      await ctx.reply('📍 Шаг 5/11 — Выберите точку (название):', paginatedButtons(r.terminals, session._page || 0, 10));
       return;
     }
     if (payload.startsWith('btn|')) { await this._handleButtonChoice(ctx, session, payload.split('|')[1]); return; }
@@ -155,10 +156,10 @@ class SalesController {
     const isIndex = !isNaN(idx);
 
     switch (session.step) {
-      case 'manager': { session.manager = isIndex && idx >= 0 && idx < r.managers.length ? r.managers[idx] : value; session.step = 'channel'; await ctx.reply(`✅ Менеджер: ${session.manager}\n\n📊 Шаг 3/10 — Выберите канал продаж:`, gridButtons(r.channels, 2)); break; }
-      case 'channel': { session.channel = isIndex && idx >= 0 && idx < r.channels.length ? r.channels[idx] : value; session.step = 'city'; await ctx.reply(`✅ Канал: ${session.channel}\n\n🏙️ Шаг 4/10 — Выберите город:`, gridButtons(r.cities, 3)); break; }
-      case 'city': { session.city = isIndex && idx >= 0 && idx < r.cities.length ? r.cities[idx] : value; session.step = 'terminal'; session._page = 0; await ctx.reply(`✅ Город: ${session.city}\n\n📍 Шаг 5/10 — Выберите точку (название):`, paginatedButtons(r.terminals, 0, 10)); break; }
-      case 'terminal': { session.terminal = isIndex && idx >= 0 && idx < r.terminals.length ? r.terminals[idx] : value; session.step = 'cash'; await ctx.reply(`✅ Точка: ${session.terminal}\n\n💰 Шаг 6/10 — Введите сумму наличные (за день):`); break; }
+      case 'manager': { session.manager = isIndex && idx >= 0 && idx < r.managers.length ? r.managers[idx] : value; session.step = 'channel'; await ctx.reply(`✅ Менеджер: ${session.manager}\n\n📊 Шаг 3/11 — Выберите канал продаж:`, gridButtons(r.channels, 2)); break; }
+      case 'channel': { session.channel = isIndex && idx >= 0 && idx < r.channels.length ? r.channels[idx] : value; session.step = 'city'; await ctx.reply(`✅ Канал: ${session.channel}\n\n🏙️ Шаг 4/11 — Выберите город:`, gridButtons(r.cities, 3)); break; }
+      case 'city': { session.city = isIndex && idx >= 0 && idx < r.cities.length ? r.cities[idx] : value; session.step = 'terminal'; session._page = 0; await ctx.reply(`✅ Город: ${session.city}\n\n📍 Шаг 5/11 — Выберите точку (название):`, paginatedButtons(r.terminals, 0, 10)); break; }
+      case 'terminal': { session.terminal = isIndex && idx >= 0 && idx < r.terminals.length ? r.terminals[idx] : value; session.step = 'cash'; await ctx.reply(`✅ Точка: ${session.terminal}\n\n💰 Шаг 6/11 — Введите сумму наличные (за день):`); break; }
       case 'receipt_confirm': if (value === 'Да_чек') { session.step = 'waiting_receipt'; await ctx.reply('📸 Отправьте фото чека:'); } else { session.receiptUrl = ''; await this._saveSaleAndStartItems(ctx, session); } break;
       case 'waiting_receipt': if (value === 'retry_photo') { session.step = 'waiting_receipt'; await ctx.reply('📸 Отправьте фото чека:'); } else if (value === 'skip_photo') { session.receiptUrl = ''; await this._saveSaleAndStartItems(ctx, session); } break;
       case 'more_confirm': if (value === 'Да') await this._startProductFlow(ctx, session); else await this._showPreview(ctx, session); break;
@@ -169,18 +170,20 @@ class SalesController {
 
   async _handleText(ctx, session, text) {
     switch (session.step) {
-      case 'terminal_number': { session.terminalNumber = text; session.step = 'manager'; const r = await ref.getRef(); await ctx.reply(`✅ Номер: ${text}\n\n👤 Шаг 2/10 — Выберите менеджера:`, gridButtons([...new Set(r.managers)], 3)); break; }
-      case 'cash': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.cash = v; session.step = 'cashless'; await ctx.reply(`✅ Наличные: ${v} ₽\n\n💳 Шаг 7/10 — Введите сумму безналичные (за день):`); break; }
-      case 'cashless': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.cashless = v; session.step = 'credit'; await ctx.reply(`✅ Безналичные: ${v} ₽\n\n🏦 Шаг 8/10 — Введите сумму Кредит/Рассрочка (за день):`); break; }
-      case 'credit': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.credit = v; session.step = 'encashment'; await ctx.reply(`✅ Кредит/Рассрочка: ${v} ₽\n\n🚚 Шаг 9/10 — Введите сумму инкассации (за день):`); break; }
-      case 'encashment': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.encashment = v; session.step = 'receipt_confirm'; await ctx.reply(`✅ Инкассация: ${v} ₽\n\n📸 Шаг 10/10 — Загрузить фото чека?`, { buttons: [[{ text: '✅ Да, загрузить фото', payload: 'btn|Да_чек' }], [{ text: '❌ Нет, продолжить', payload: 'btn|Нет_чек' }]] }); break; }
+      case 'terminal_number': { session.terminalNumber = text; session.step = 'manager'; const r = await ref.getRef(); await ctx.reply(`✅ Номер: ${text}\n\n👤 Шаг 2/11 — Выберите менеджера:`, gridButtons([...new Set(r.managers)], 3)); break; }
+      case 'cash': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.cash = v; session.step = 'cashless'; await ctx.reply(`✅ Наличные: ${v} ₽\n\n💳 Шаг 7/11 — Введите сумму безналичные (за день):`); break; }
+      case 'cashless': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.cashless = v; session.step = 'credit'; await ctx.reply(`✅ Безналичные: ${v} ₽\n\n🏦 Шаг 8/11 — Введите сумму Кредит/Рассрочка (за день):`); break; }
+      case 'credit': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.credit = v; session.step = 'encashment'; await ctx.reply(`✅ Кредит/Рассрочка: ${v} ₽\n\n🚚 Шаг 9/11 — Введите сумму инкассации (за день):`); break; }
+      case 'encashment': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.encashment = v; session.step = 'business_trip'; await ctx.reply(`✅ Инкассация: ${v} ₽\n\n🧳 Шаг 10/11 — Введите командировочную надбавку (за день):`); break; }
+      case 'business_trip': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.businessTripAllowance = v; session.step = 'receipt_confirm'; await ctx.reply(`✅ Командировочная: ${v} ₽\n\n📸 Шаг 11/11 — Загрузить фото чека?`, { buttons: [[{ text: '✅ Да, загрузить фото', payload: 'btn|Да_чек' }], [{ text: '❌ Нет, продолжить', payload: 'btn|Нет_чек' }]] }); break; }
       case 'quantity': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.currentItem.quantity = v; session.step = 'unit_price'; await ctx.reply(`✅ Количество: ${v}\n\n💲 Цена за единицу:`); break; }
       case 'unit_price': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.currentItem.unitPrice = v; session.currentItem.lineTotal = cart.calculateLineTotal(session.currentItem.quantity, v); session.step = 'item_comment'; await ctx.reply(`✅ Цена: ${v} ₽ | Сумма: ${session.currentItem.lineTotal} ₽\n\n💬 Комментарий к товару (или "-" чтобы пропустить):`); break; }
       case 'item_comment': { session.currentItem.comment = text === '-' ? '' : text; session.items.push(session.currentItem); session.currentItem = null; session.step = 'more_confirm'; await ctx.reply('✅ Товар добавлен!\n\n📦 Добавить ещё товар?', { buttons: [[{ text: '✅ Да, ещё товар', payload: 'btn|Да' }], [{ text: '❌ Нет. Проверить отчет', payload: 'btn|Нет' }]] }); break; }
       case 'edit_cash': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.cash = v; session.step = 'edit_cashless'; await ctx.reply(`✅ Наличные: ${v} ₽\nВведите новые безналичные (текущее: ${session.cashless || 0}):`); break; }
       case 'edit_cashless': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.cashless = v; session.step = 'edit_credit'; await ctx.reply(`✅ Безналичные: ${v} ₽\nВведите новый кредит/рассрочка (текущее: ${session.credit || 0}):`); break; }
       case 'edit_credit': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.credit = v; session.step = 'edit_encashment'; await ctx.reply(`✅ Кредит/Рассрочка: ${v} ₽\nВведите новую инкассацию (текущее: ${session.encashment || 0}):`); break; }
-      case 'edit_encashment': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.encashment = v; await ctx.reply(`✅ Инкассация: ${v} ₽\n\nСуммы обновлены!`); await this._showPreview(ctx, session); break; }
+      case 'edit_encashment': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.encashment = v; session.step = 'edit_business_trip'; await ctx.reply(`✅ Инкассация: ${v} ₽\nВведите новую командировочную (текущее: ${session.businessTripAllowance || 0}):`); break; }
+      case 'edit_business_trip': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session.businessTripAllowance = v; await ctx.reply(`✅ Командировочная: ${v} ₽\n\nСуммы обновлены!`); await this._showPreview(ctx, session); break; }
       case 'edit_item_qty': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } session._editItemNewQty = v; session.step = 'edit_item_price'; await ctx.reply(`✅ Количество: ${v}\nВведите новую цену за единицу (текущее: ${session.items[session._editItemIdx].unitPrice}):`); break; }
       case 'edit_item_price': { const v = parseNum(text); if (v === null) { await ctx.reply('⚠️ Введите число:'); return; } const e = cart.updateItemPrice(session.items[session._editItemIdx], session._editItemNewQty, v); session.items[session._editItemIdx] = e; await ctx.reply(`✅ Обновлено: ${e.productName} × ${e.quantity} = ${e.lineTotal} ₽`); await this._showPreview(ctx, session); break; }
     }
@@ -189,7 +192,7 @@ class SalesController {
   async _handleEdit(ctx, session, target) {
     const r = await ref.getRef();
     switch (target) {
-      case 'payments': session.step = 'edit_cash'; session._editMode = true; await ctx.reply(`💰 Текущие суммы:\n  Наличные: ${session.cash || 0}\n  Безналичные: ${session.cashless || 0}\n  Кредит: ${session.credit || 0}\n  Инкассация: ${session.encashment || 0}\n\nВведите новую сумму наличные:`); break;
+      case 'payments': session.step = 'edit_cash'; session._editMode = true; await ctx.reply(`💰 Текущие суммы:\n  Наличные: ${session.cash || 0}\n  Безналичные: ${session.cashless || 0}\n  Кредит: ${session.credit || 0}\n  Инкассация: ${session.encashment || 0}\n  Командировочная: ${session.businessTripAllowance || 0}\n\nВведите новую сумму наличные:`); break;
       case 'items':
         if (session.items.length === 0) { await ctx.reply('📦 Товаров пока нет. Хотите добавить?', { buttons: [[{ text: '➕ Добавить товар', payload: 'edit|add_item' }], [{ text: '↩️ Назад к предпросмотру', payload: 'preview_edit' }]] }); return; }
         const ib = cart.buildEditItemButtons(session.items); ib.push([{ text: '🗑 Удалить все товары', payload: 'edit_item|delete_all' }]); ib.push([{ text: '↩️ Назад', payload: 'preview_edit' }]); session.step = 'edit_item_choose'; await ctx.reply('📦 Выберите товар для редактирования:', { buttons: ib }); break;

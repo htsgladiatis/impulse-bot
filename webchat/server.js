@@ -63,7 +63,7 @@ io.on('connection', (socket) => {
   sessions.set(socket.id, session);
 
   socket.emit('bot_message', {
-    text: `📅 Дата: ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}\n\n🔢 Шаг 1/10 — Введите номер терминала:`,
+    text: `📅 Дата: ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}\n\n🔢 Шаг 1/11 — Введите номер терминала:`,
     step: 'terminal_number',
     stepNum: 1
   });
@@ -208,7 +208,7 @@ async function handleText(socket, s, text) {
       s.terminalNumber = text;
       s.step = 'manager';
       const managers = [...new Set(r.managers || [])];
-      sendBot(socket, s, `✅ Номер: ${text}\n\n👤 Шаг 2/10 — Выберите менеджера:`, {
+      sendBot(socket, s, `✅ Номер: ${text}\n\n👤 Шаг 2/11 — Выберите менеджера:`, {
         buttons: managers.map(m => ({ text: m, value: m })), stepNum: 2
       });
       break;
@@ -218,7 +218,7 @@ async function handleText(socket, s, text) {
       if (v === null) { sendBot(socket, s, '⚠️ Введите число:'); return; }
       s.cash = v;
       s.step = 'cashless';
-      sendBot(socket, s, `✅ Наличные: ${v} ₽\n\n💳 Шаг 7/10 — Безналичные (за день):`, { stepNum: 7 });
+      sendBot(socket, s, `✅ Наличные: ${v} ₽\n\n💳 Шаг 7/11 — Безналичные (за день):`, { stepNum: 7 });
       break;
     }
 
@@ -227,7 +227,7 @@ async function handleText(socket, s, text) {
       if (v === null) { sendBot(socket, s, '⚠️ Введите число:'); return; }
       s.cashless = v;
       s.step = 'credit';
-      sendBot(socket, s, `✅ Безналичные: ${v} ₽\n\n🏦 Шаг 8/10 — Кредит/Рассрочка:`, { stepNum: 8 });
+      sendBot(socket, s, `✅ Безналичные: ${v} ₽\n\n🏦 Шаг 8/11 — Кредит/Рассрочка:`, { stepNum: 8 });
       break;
     }
 
@@ -236,7 +236,7 @@ async function handleText(socket, s, text) {
       if (v === null) { sendBot(socket, s, '⚠️ Введите число:'); return; }
       s.credit = v;
       s.step = 'encashment';
-      sendBot(socket, s, `✅ Кредит: ${v} ₽\n\n🚚 Шаг 9/10 — Инкассация:`, { stepNum: 9 });
+      sendBot(socket, s, `✅ Кредит: ${v} ₽\n\n🚚 Шаг 9/11 — Инкассация:`, { stepNum: 9 });
       break;
     }
 
@@ -244,12 +244,21 @@ async function handleText(socket, s, text) {
       const v = parseNum(text);
       if (v === null) { sendBot(socket, s, '⚠️ Введите число:'); return; }
       s.encashment = v;
+      s.step = 'business_trip';
+      sendBot(socket, s, `✅ Инкассация: ${v} ₽\n\n✈️ Шаг 10/11 — Командировочная надбавка (0 если нет):`, { stepNum: 10 });
+      break;
+    }
+
+    case 'business_trip': {
+      const v = parseNum(text);
+      if (v === null) { sendBot(socket, s, '⚠️ Введите число:'); return; }
+      s.businessTripAllowance = v;
       s.step = 'receipt_confirm';
-      sendBot(socket, s, `✅ Инкассация: ${v} ₽\n\n📸 Шаг 10/10 — Загрузить фото чека?`, {
+      sendBot(socket, s, `✅ Командировочная: ${v} ₽\n\n📸 Шаг 11/11 — Загрузить фото чека?`, {
         buttons: [
           { text: '✅ Да, загрузить', value: 'Да_чек' },
           { text: '❌ Нет, продолжить', value: 'Нет_чек' }
-        ], stepNum: 10
+        ], stepNum: 11
       });
       break;
     }
@@ -259,7 +268,7 @@ async function handleText(socket, s, text) {
       if (q === null) { sendBot(socket, s, '⚠️ Введите число:'); return; }
       s.currentItem.quantity = q;
       s.step = 'unit_price';
-      sendBot(socket, s, `✅ Кол-во: ${q}\n\n💲 Цена за единицу:`);
+      sendBot(socket, s, `✅ Кол-во: ${q}\n\n� Цена за единицу:`);
       break;
     }
 
@@ -301,7 +310,7 @@ async function handleButton(socket, s, value) {
     case 'manager':
       s.manager = value;
       s.step = 'channel';
-      sendBot(socket, s, `✅ Менеджер: ${value}\n\n📊 Шаг 3/10 — Канал продаж:`, {
+      sendBot(socket, s, `✅ Менеджер: ${value}\n\n📊 Шаг 3/11 — Канал продаж:`, {
         buttons: (r.channels || []).map(c => ({ text: c, value: c })), stepNum: 3
       });
       break;
@@ -309,7 +318,7 @@ async function handleButton(socket, s, value) {
     case 'channel':
       s.channel = value;
       s.step = 'city';
-      sendBot(socket, s, `✅ Канал: ${value}\n\n🏙️ Шаг 4/10 — Город:`, {
+      sendBot(socket, s, `✅ Канал: ${value}\n\n🏙️ Шаг 4/11 — Город:`, {
         buttons: (r.cities || []).map(c => ({ text: c, value: c })), stepNum: 4
       });
       break;
@@ -317,7 +326,7 @@ async function handleButton(socket, s, value) {
     case 'city':
       s.city = value;
       s.step = 'terminal';
-      sendBot(socket, s, `✅ Город: ${value}\n\n📍 Шаг 5/10 — Точка:`, {
+      sendBot(socket, s, `✅ Город: ${value}\n\n📍 Шаг 5/11 — Точка:`, {
         buttons: (r.terminals || []).map(t => ({ text: t, value: t })), stepNum: 5, paginated: true
       });
       break;
@@ -325,7 +334,7 @@ async function handleButton(socket, s, value) {
     case 'terminal':
       s.terminal = value;
       s.step = 'cash';
-      sendBot(socket, s, `✅ Точка: ${value}\n\n💰 Шаг 6/10 — Наличные (за день):`, { stepNum: 6 });
+      sendBot(socket, s, `✅ Точка: ${value}\n\n💰 Шаг 6/11 — Наличные (за день):`, { stepNum: 6 });
       break;
 
     case 'receipt_confirm':
