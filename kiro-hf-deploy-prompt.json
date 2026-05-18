@@ -1,0 +1,157 @@
+{
+  "role": "DevOps AI Agent — Deploy Kiro Gateway to Hugging Face Spaces",
+  "goal": "Развернуть kiro-gateway прокси-сервер на Hugging Face Spaces (Docker SDK), чтобы он работал 24/7 без необходимости держать включённый ПК. Прокси превращает Kiro API в OpenAI-совместимый эндпоинт для использования через Cline в VS Code.",
+
+  "context": {
+    "what_is_kiro_gateway": "OpenAI-совместимый прокси-сервер для Kiro API. Принимает запросы в формате OpenAI (/v1/chat/completions, /v1/models) и перенаправляет их на Kiro API (runtime.us-east-1.kiro.dev). Использует авторизацию из SQLite базы Kiro Desktop.",
+    "source_repo": "https://github.com/nicepkg/kiro-gateway",
+    "local_clone": "c:\\Users\\user\\Desktop\\cline\\kiro-gateway",
+    "hf_account": "htsgladiatis",
+    "existing_hf_space": "https://huggingface.co/spaces/htsgladiatis/omniroute-proxy",
+    "kiro_credentials_location": "C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3",
+    "kiro_auth_type": "Kiro Desktop (SSO, region us-east-1)",
+    "proxy_api_key": "kiro-local-proxy-2024",
+    "target_model": "claude-opus-4.7",
+    "endpoint_format": "https://htsgladiatis-{space_name}.hf.space/v1"
+  },
+
+  "deployment_steps": [
+    {
+      "step": 1,
+      "name": "Подготовка файлов",
+      "description": "Подготовить все необходимые файлы для деплоя на HF Spaces",
+      "actions": [
+        "Прочитать содержимое всех файлов из папки kiro-gateway: main.py, requirements.txt, Dockerfile, docker-compose.yml, .env.example, папку kiro/",
+        "Создать README.md с YAML frontmatter для HF Spaces (sdk: docker, pinned: false)",
+        "Убедиться, что Dockerfile корректен (python:3.10-slim, expose 8000, CMD python main.py)",
+        "Проверить requirements.txt на наличие всех зависимостей"
+      ]
+    },
+    {
+      "step": 2,
+      "name": "Решение проблемы с credentials",
+      "description": "Kiro Gateway требует SQLite базу с авторизационными токенами. Без неё прокси не работает.",
+      "actions": [
+        "Прочитать файл C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3 (это SQLite база с credentials)",
+        "Зашифровать/закодировать файл в base64 для безопасного хранения",
+        "Вариант A (рекомендуемый): Загрузить data.sqlite3 как HF Secret (Settings → Repository secrets → New secret → имя: KIRO_DB_BASE64, значение: base64-контент файла)",
+        "Вариант B: Встроить base64 в Dockerfile как build arg (менее безопасно, но проще)",
+        "В Dockerfile добавить шаг декодирования: RUN echo $KIRO_DB_BASE64 | base64 -d > /app/data.sqlite3",
+        "В .env настроить KIRO_CLI_DB_FILE=/app/data.sqlite3"
+      ],
+      "important": "⚠️ Токены Kiro истекают! Нужно периодически обновлять HF Secret с новой базой. Это главный ограничивающий фактор."
+    },
+    {
+      "step": 3,
+      "name": "Адаптация .env для HF Spaces",
+      "description": "Настроить переменные окружения для работы на HF",
+      "env_vars": {
+        "KIRO_CLI_DB_FILE": "/app/data.sqlite3",
+        "PROXY_API_KEY": "kiro-local-proxy-2024",
+        "HOST": "0.0.0.0",
+        "PORT": "7860"
+      },
+      "note": "HF Spaces использует порт 7860 по умолчанию. Нужно изменить порт в main.py или .env с 8000 на 7860."
+    },
+    {
+      "step": 4,
+      "name": "Модификация Dockerfile для HF Spaces",
+      "description": "Адаптировать Dockerfile для HF Spaces с поддержкой secrets и порта 7860",
+      "dockerfile_additions": [
+        "ENV PORT=7860",
+        "EXPOSE 7860",
+        "RUN if [ -n \"$KIRO_DB_BASE64\" ]; then echo $KIRO_DB_BASE64 | base64 -d > /app/data.sqlite3; fi",
+        "Убедиться что CMD запускает main.py с правильным портом"
+      ]
+    },
+    {
+      "step": 5,
+      "name": "Создание HF Space и загрузка",
+      "description": "Создать новое HF Space и загрузить файлы",
+      "actions": [
+        "Перейти на https://huggingface.co/new-space",
+        "Имя: kiro-gateway (или kiro-proxy)",
+        "SDK: Docker",
+        "Visibility: Private (чтобы API key не был публичным)",
+        "Создать Space",
+        "Загрузить файлы через HF web interface или через git:"
+      ],
+      "git_commands": [
+        "cd c:\\Users\\user\\Desktop\\cline\\kiro-gateway",
+        "git remote add hf https://htsgladiatis:<HF_TOKEN>@huggingface.co/spaces/htsgladiatis/kiro-gateway",
+        "git push hf main --force"
+      ],
+      "alternative": "Использовать Python API: from huggingface_hub import HfApi; api = HfApi(); api.upload_folder(...)"
+    },
+    {
+      "step": 6,
+      "name": "Настройка HF Secrets",
+      "description": "Добавить секреты в HF Space",
+      "actions": [
+        "Перейти в Settings → Repository secrets на странице Space",
+        "Добавить секрет KIRO_DB_BASE64 со значением base64(data.sqlite3)",
+        "Добавить секрет PROXY_API_KEY со значением kiro-local-proxy-2024",
+        "Space автоматически пересоберётся с новыми секретами"
+      ]
+    },
+    {
+      "step": 7,
+      "name": "Обновление Cline settings",
+      "description": "Переключить Cline с локального прокси на HF Space",
+      "new_settings": {
+        "cline.apiProvider": "openai-compatible",
+        "cline.openaiCompatibleBaseUrl": "https://htsgladiatis-kiro-gateway.hf.space/v1",
+        "cline.openaiCompatibleApiKey": "kiro-local-proxy-2024",
+        "cline.openaiCompatibleModelId": "claude-opus-4.7"
+      },
+      "vscode_settings_path": "C:\\Users\\user\\AppData\\Roaming\\Code\\User\\settings.json"
+    },
+    {
+      "step": 8,
+      "name": "Тестирование удалённого прокси",
+      "description": "Проверить, что HF Space работает корректно",
+      "test_commands": [
+        "curl https://htsgladiatis-kiro-gateway.hf.space/health",
+        "curl -H \"Authorization: Bearer kiro-local-proxy-2024\" https://htsgladiatis-kiro-gateway.hf.space/v1/models",
+        "curl -X POST https://htsgladiatis-kiro-gateway.hf.space/v1/chat/completions -H \"Content-Type: application/json\" -H \"Authorization: Bearer kiro-local-proxy-2024\" -d \"{\\\"model\\\":\\\"claude-opus-4.7\\\",\\\"messages\\\":[{\\\"role\\\":\\\"user\\\",\\\"content\\\":\\\"Hello\\\"}]}\""
+      ]
+    }
+  ],
+
+  "file_structure_on_hf": {
+    "description": "Структура файлов, которые должны быть в HF Space",
+    "files": [
+      "README.md — с YAML frontmatter (sdk: docker)",
+      "Dockerfile — адаптированный для HF (порт 7860, secrets)",
+      "main.py — основной файл прокси",
+      "requirements.txt — зависимости Python",
+      "kiro/ — папка с модулями прокси (auth, routes, cache и т.д.)",
+      ".env.example — шаблон переменных окружения"
+    ]
+  },
+
+  "known_issues": [
+    "Kiro токены истекают — нужно периодически обновлять HF Secret с новым data.sqlite3",
+    "HF Spaces могут засыпать после неактивности (для free tier). Решение: периодический ping или upgrade",
+    "data.sqlite3 содержит приватные токены — Space должен быть Private",
+    "Порт на HF Spaces: 7860 (не 8000!)",
+    "HF Secrets не раскрываются в логах сборки — это хорошо для безопасности"
+  ],
+
+  "auto_refresh_idea": {
+    "description": "Для автоматического обновления токенов можно создать GitHub Action, который:",
+    "steps": [
+      "Раз в день вытаскивает data.sqlite3 с локального ПК (если он включён)",
+      "Кодирует в base64",
+      "Обновляет HF Secret через HF API",
+      "Это НЕ полностью автономно — требуется хотя бы периодическое включение ПК"
+    ]
+  },
+
+  "success_criteria": [
+    "GET /health возвращает 200",
+    "GET /v1/models возвращает список моделей",
+    "POST /v1/chat/completions с model=claude-opus-4.7 возвращает ответ от Kiro",
+    "Cline в VS Code может общаться через HF Space endpoint"
+  ]
+}

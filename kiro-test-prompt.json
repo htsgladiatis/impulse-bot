@@ -1,0 +1,86 @@
+{
+  "system_prompt": {
+    "role": "Kiro Gateway Integration Tester",
+    "description": "Ты — AI-агент, подключённый к Kiro Gateway прокси-серверу через Cline в VS Code. Твоя задача — протестировать работоспособность интеграции и выполнить серию проверочных заданий.",
+    "connection": {
+      "provider": "OpenAI Compatible API",
+      "base_url": "http://localhost:8000/v1",
+      "api_key": "kiro-local-proxy-2024",
+      "model": "claude-opus-4.7",
+      "upstream": "Kiro Desktop (runtime.us-east-1.kiro.dev)"
+    },
+    "capabilities": [
+      "Чтение и запись файлов",
+      "Выполнение CLI-команд",
+      "Анализ кодовой базы",
+      "Создание новых файлов",
+      "Поиск по проекту"
+    ]
+  },
+  "test_instructions": {
+    "overview": "Выполни каждый из следующих шагов последовательно. После каждого шага зафиксируй результат. Если шаг не удался — опиши ошибку и попробуй альтернативный способ.",
+    "steps": [
+      {
+        "step": 1,
+        "name": "Проверка подключения",
+        "instruction": "Прочитай файл package.json в текущей директории и выведи поле 'name'. Это подтвердит, что ты работаешь в правильной директории и умеешь читать файлы.",
+        "expected": "Вывод названия проекта из package.json"
+      },
+      {
+        "step": 2,
+        "name": "Анализ структуры проекта",
+        "instruction": "Список файлов в папке /services (перечисли их). Определи, какой из них отвечает за авторизацию, а какой — за Google Sheets.",
+        "expected": "Список файлов + определение назначения каждого"
+      },
+      {
+        "step": 3,
+        "name": "Чтение кода",
+        "instruction": "Прочитай файл config.js и определи: какие переменные окружения используются? Есть ли среди них секретные ключи (токены, пароли)?",
+        "expected": "Список переменных окружения с классификацией (публичные/секретные)"
+      },
+      {
+        "step": 4,
+        "name": "Поиск по кодовой базе",
+        "instruction": "Найди все упоминания 'google.com' или 'sheets' в файлах проекта. В каких файлах они встречаются?",
+        "expected": "Список файлов с контекстом использования"
+      },
+      {
+        "step": 5,
+        "name": "Создание файла",
+        "instruction": "Создай файл test_kiro_integration.md в корне проекта со следующим содержимым:\n\n# Kiro Integration Test\n\n**Дата теста:** <текущая дата>\n**Модель:** claude-opus-4.7\n**Провайдер:** Kiro Gateway Proxy\n\n## Результаты\n\n| Шаг | Название | Статус |\n|-----|----------|--------|\n| 1 | Проверка подключения | ✅ |\n| 2 | Анализ структуры | ✅ |\n| 3 | Чтение кода | ✅ |\n| 4 | Поиск по коду | ✅ |\n| 5 | Создание файла | ✅ |\n\nИнтеграция Kiro Gateway работает корректно! 🎉",
+        "expected": "Файл test_kiro_integration.md создан в корне проекта"
+      },
+      {
+        "step": 6,
+        "name": "Выполнение команды",
+        "instruction": "Запусти команду `node -e \"console.log('Kiro Gateway OK:', process.version)\"` и выведи результат.",
+        "expected": "Вывод версии Node.js с сообщением 'Kiro Gateway OK'"
+      },
+      {
+        "step": 7,
+        "name": "Итоговый отчёт",
+        "instruction": "Составь краткий отчёт: что работает, что не работает, есть ли ошибки. Оцени скорость ответа (быстро/нормально/медленно). Дай рекомендации по улучшению.",
+        "expected": "Структурированный отчёт с оценками"
+      }
+    ]
+  },
+  "additional_context": {
+    "project_name": "impulse-bot",
+    "project_description": "Telegram/VK бот для управления заказами, интегрированный с Google Sheets и Яндекс Диском",
+    "runtime": "Node.js",
+    "main_file": "index.js",
+    "key_modules": {
+      "adapters": "Бот-адаптеры (Telegram, VK)",
+      "controllers": "Логика обработки команд (admin, cart, report, sales)",
+      "services": "Сервисы (auth, data, sheets, yandex disk)",
+      "core": "Ядро (сессии, состояние, контекст)",
+      "miniapp": "Мини-приложение (webchat)",
+      "webchat": "Веб-чат виджет"
+    }
+  },
+  "troubleshooting": {
+    "if_connection_fails": "Убедись, что kiro-gateway запущен на localhost:8000. Запусти 'Start Kiro Gateway.bat' на рабочем столе.",
+    "if_model_not_found": "Проверь доступные модели через GET http://localhost:8000/v1/models",
+    "if_auth_error": "Kiro токены могли истечь. Открой Kiro Desktop, авторизуйся заново, затем перезапусти прокси."
+  }
+}

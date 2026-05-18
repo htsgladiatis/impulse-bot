@@ -1,0 +1,161 @@
+{
+  "snapshot_metadata": {
+    "version": "2.1",
+    "generated_at": "2026-05-18T16:26:00+03:00",
+    "project_complexity": "high",
+    "confidence_score": 78
+  },
+  "project_overview": "Impulse — комплексная платформа обмена сообщениями и Mini App. Включает Telegram-бота для авторизации, Mini App, админ-панель, лендинг, и webchat (веб-версию мессенджера). Проект размещён на VPS (109.69.22.112) с nginx, PM2, Express. Домен impulse.is-a.dev зарегистрирован через PR #38572 в is-a-dev/register и ожидает мержа. Цель — полноценный мессенджер с WebApp-интерфейсом, интегрированный с Telegram.",
+  "tech_stack": [
+    "Node.js",
+    "Express.js",
+    "PM2 (process manager)",
+    "nginx 1.24.0 (reverse proxy)",
+    "Ubuntu (VPS ОС)",
+    "Telegram Bot API",
+    "Vanilla JavaScript (miniapp)",
+    "HTML5/CSS3 (miniapp, лендинг)",
+    "is-a-dev (бесплатный subdomain DNS)",
+    "SSL: самоподписанный сертификат на IP / Cloudflare через is-a-dev"
+  ],
+  "key_entities": [
+    {
+      "name": "impulse-miniapp (Mini App)",
+      "type": "Frontend Application",
+      "status": "Разработан, локально работает, скопирован на сервер",
+      "notes": "Порт 3001, Express serving static files. Health check: /health → OK"
+    },
+    {
+      "name": "impulse-bot (Telegram Bot)",
+      "type": "Backend Service",
+      "status": "Работает на сервере",
+      "notes": "Отвечает за авторизацию пользователей через Telegram"
+    },
+    {
+      "name": "Admin Panel",
+      "type": "Frontend Application",
+      "status": "Разработана",
+      "notes": "Панель администратора для управления пользователями и контентом"
+    },
+    {
+      "name": "Landing Page",
+      "type": "Frontend Application",
+      "status": "Разработан",
+      "notes": "Промо-страница проекта"
+    },
+    {
+      "name": "Webchat",
+      "type": "Web Application",
+      "status": "В разработке",
+      "notes": "Веб-версия мессенджера для обмена сообщениями в реальном времени"
+    },
+    {
+      "name": "VPS Server",
+      "type": "Infrastructure",
+      "status": "Настроен и работает",
+      "notes": "IP: 109.69.22.112, nginx reverse proxy, PM2 process management, Ubuntu"
+    },
+    {
+      "name": "impulse.is-a.dev",
+      "type": "Domain (DNS)",
+      "status": "PR #38572 создан, ожидает мержа (1-3 дня)",
+      "notes": "A-запись → 109.69.22.112, Cloudflare proxying включён"
+    }
+  ],
+  "file_context": [
+    {
+      "file_path": "miniapp/",
+      "role": "Mini App — основное клиентское приложение",
+      "last_changes": "Скопировано на сервер в /opt/impulse-bot/miniapp/",
+      "status": "Задеплоено через PM2 (impulse-miniapp)"
+    },
+    {
+      "file_path": "miniapp/public/index.html",
+      "role": "Главная страница Mini App",
+      "last_changes": "Последние изменения: 2026-05-16",
+      "status": "28470 байт, served на порту 3001"
+    },
+    {
+      "file_path": "pm2.config.js",
+      "role": "PM2 конфигурация для запуска сервисов",
+      "last_changes": "Используется для управления процессами",
+      "status": "Активен на сервере"
+    },
+    {
+      "file_path": "domains/impulse.json (is-a-dev fork)",
+      "role": "DNS конфигурация домена impulse.is-a.dev",
+      "last_changes": "Обновлён owner на htsgladiatis, A record → 109.69.22.112",
+      "status": "PR #38572 создан"
+    }
+  ],
+  "session_timeline": [
+    "1. Пользователь запросил задачу: скопировать miniapp на сервер и запустить через PM2",
+    "2. Проверен список файлов в C:\\Users\\user\\Desktop\\cline\\impulse-bot\\miniapp/",
+    "3. Обнаружено, что контекст включает регистрацию домена impulse.is-a.dev",
+    "4. Fork репозитория is-a-dev/register выполнен ранее (htsgladiatis/register существует с 2026-05-16)",
+    "5. Получен GitHub токен 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 для API операций",
+    "6. Определён GitHub username: htsgladiatis (ID: 25381945)",
+    "7. Найден существующий файл domains/impulse.json в форке (SHA: 7e1dd72c...)",
+    "8. Существующий файл имел owner: Skromnyx — обновлён на htsgladiatis",
+    "9. Файл impulse.json обновлён через GitHub API (PUT с SHA)",
+    "10. Создан PR #38572 в is-a-dev/register: 'Register impulse.is-a.dev'",
+    "11. Проверен SSL: https://109.69.22.112 работает с самоподписанным сертификатом (HTTP 200)",
+    "12. Health check: http://localhost:3001/health → {status: ok, uptime: 158697}",
+    "13. Определено: самоподписанный сертификат не подходит для продакшена — нужен домен с валидным SSL"
+  ],
+  "current_task": "Задача: развернуть Impulse Mini App на VPS и получить рабочий URL с SSL.\n\nЧто сделано:\n- Miniapp файлы на сервере в /opt/impulse-bot/miniapp/\n- PM2 запущен, impulse-miniapp работает на порту 3001\n- nginx настроен как reverse proxy (порт 443 → 3001)\n- Домен impulse.is-a.dev зарегистрирован (PR #38572, ожидает мержа)\n- Health check проходит успешно\n\nЧто осталось:\n1. Дождаться мержа PR #38572 (https://github.com/is-a-dev/register/pull/38572)\n2. После мержа — домен impulse.is-a.dev будет автоматически направлен на 109.69.22.112 через Cloudflare\n3. Проверить SSL на https://impulse.is-a.dev/health\n4. Протестировать полный флоу: Mini App → авторизация → webchat\n\nКритерии успеха:\n- https://impulse.is-a.dev/health возвращает OK\n- Mini App открывается без ошибок SSL\n- Авторизация через Telegram работает\n- Обмен сообщениями функционирует",
+  "decision_log": [
+    {
+      "decision": "Использовать is-a-dev для бесплатного домена вместо покупки",
+      "rationale": "Бесплатный сервис, автоматический SSL через Cloudflare, быстрая регистрация через GitHub PR",
+      "alternatives_considered": ["Покупка домена (reg.ru, namecheap)", "Использовать голый IP с самоподписанным сертификатом", "ngrok/tunneling"]
+    },
+    {
+      "decision": "Направить impulse.is-a.dev на 109.69.22.112 (A record)",
+      "rationale": "Сервер имеет статический IP, A-запись — самый простой и надёжный способ",
+      "alternatives_considered": ["CNAME (не подходит для IP)", "AAAA (IPv6 не настроен)"]
+    },
+    {
+      "decision": "Проксирование через Cloudflare (proxied: true в impulse.json)",
+      "rationale": "Автоматический SSL, защита от DDoS, кеширование, бесплатно",
+      "alternatives_considered": ["DNS-only (без проксирования) — не будет автоматического SSL"]
+    },
+    {
+      "decision": "PM2 для управления процессами вместо systemd",
+      "rationale": "Простота использования, автоматический restart, мониторинг, кластеризация",
+      "alternatives_considered": ["systemd unit файлы", "Docker containers", "forever.js"]
+    },
+    {
+      "decision": "nginx как reverse proxy",
+      "rationale": "Стандарт индустрии, SSL termination, статические файлы, load balancing",
+      "alternatives_considered": ["caddy (авто-SSL, но менее распространён)", "haproxy", "Express напрямую"]
+    }
+  ],
+  "pending_issues": [
+    {
+      "issue": "PR #38572 ожидает мержа в is-a-dev/register",
+      "severity": "high",
+      "suggested_solution": "Ждать 1-3 дня. Если не смержат — проверить CI checks и комментарии ревьюеров"
+    },
+    {
+      "issue": "Самоподписанный SSL сертификат на IP 109.69.22.112",
+      "severity": "medium",
+      "suggested_solution": "После мержа PR SSL будет через Cloudflare автоматически. Текущий самоподписанный сертификат не подходит для продакшена"
+    },
+    {
+      "issue": "Настройки Mini App могут потребовать обновления",
+      "severity": "medium",
+      "suggested_solution": "Проверить и обновить App ID, service token и другие настройки в коде miniapp"
+    }
+  ],
+  "risks_and_assumptions": [
+    "PR #38572 может быть отклонён мейнтейнерами is-a-dev (низкая вероятность, т.к. формат корректный)",
+    "Mini App может требовать специфических настроек сервера, которые ещё не проверены",
+    "Telegram Bot авторизация может требовать дополнительной настройки",
+    "Сервер 109.69.22.112 может потребовать дополнительной настройки nginx для работы с Cloudflare proxy",
+    "Предполагается, что PM2 конфигурация (pm2.config.js) корректно определяет все сервисы",
+    "Пользователь имеет доступ к серверу через SSH (root@109.69.22.112)",
+    "GitHub токен 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 может истечь или быть отозван"
+  ],
+  "continuation_guide": "Вот полный контекст предыдущей сессии. Изучи его очень внимательно. Продолжай работу точно с того места, где мы остановились.\n\nМы работали над проектом Impulse — комплексным мессенджером с Mini App и Telegram-ботом. В этой сессии мы:\n\n1. Зарегистрировали домен impulse.is-a.dev через is-a-dev/register (PR #38572: https://github.com/is-a-dev/register/pull/38572)\n2. Проверили, что сервер VPS (109.69.22.112) работает — nginx на 443, PM2 с impulse-miniapp на 3001, health check OK\n3. Определили проблему: самоподписанный сертификат не подходит для продакшена — нужен домен с валидным SSL\n4. Решение: дождаться мержа PR #38572, после чего домен impulse.is-a.dev будет работать с SSL через Cloudflare\n\nТекущее состояние:\n- PR #38572 OPEN, ожидает ревью (https://github.com/is-a-dev/register/pull/38572)\n- Сервер работает, miniapp задеплоена\n- SSL через Cloudflare будет доступен после мержа домена\n\nСледующие шаги для продолжения:\n1. Проверить статус PR #38572 (merged или есть замечания)\n2. Если смержен — проверить DNS резолв impulse.is-a.dev → 109.69.22.112\n3. Проверить SSL на https://impulse.is-a.dev/health\n4. Протестировать полный флоу приложения\n\nGitHub токен: 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\nGitHub username: htsgladiatis\nFork: https://github.com/htsgladiatis/register\nPR: https://github.com/is-a-dev/register/pull/38572\nСервер: root@109.69.22.112\nPM2 config: /opt/impulse-bot/pm2.config.js\nMiniapp: /opt/impulse-bot/miniapp/"
+}

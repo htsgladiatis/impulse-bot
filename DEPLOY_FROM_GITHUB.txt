@@ -1,0 +1,67 @@
+=============================================================
+  ДЕПЛОЙ С GITHUB — 3 команды в PuTTY
+  Репозиторий: https://github.com/htsgladiatis/impulse-bot
+=============================================================
+
+Подключись к серверу через PuTTY (root@109.69.22.112) и выполни:
+
+--- КОМАНДА 1: Скачать файлы с GitHub ---
+
+cd /opt/impulse-bot && \
+git clone https://htsgladiatis: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@github.com/htsgladiatis/impulse-bot.git /tmp/impulse-bot-repo && \
+cp /tmp/impulse-bot-repo/webchat/server.js /opt/impulse-bot/webchat/server.js && \
+mkdir -p /opt/impulse-bot/webchat/public && \
+cp /tmp/impulse-bot-repo/webchat/public/index.html /opt/impulse-bot/webchat/public/index.html && \
+rm -rf /tmp/impulse-bot-repo && \
+echo "=== Files copied ==="
+
+--- КОМАНДА 2: Обновить nginx ---
+
+cat > /etc/nginx/sites-enabled/default << 'NGINX'
+server {
+    listen 80;
+    server_name 109.69.22.112;
+    client_max_body_size 20m;
+
+    location /webchat {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+        proxy_buffering off;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /miniapp {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+NGINX
+
+nginx -t && systemctl reload nginx && echo "=== Nginx OK ==="
+
+--- КОМАНДА 3: Перезапустить PM2 ---
+
+cd /opt/impulse-bot && pm2 restart all && pm2 status && curl -s http://localhost:3002/health
+
+--- ПРОВЕРКА ---
+Открой http://109.69.22.112/ в браузере
+
+=============================================================

@@ -1,0 +1,87 @@
+================================================================
+  ДЕПЛОЙ MINIAPP НА СЕРВЕР — Инструкция
+  root@109.69.22.112
+================================================================
+
+=== ШАГ 0: Скопировать файлы через WinSCP ===
+SSH-ключ отклоняется сервером, поэтому копируй файлы через WinSCP:
+
+1. Открой WinSCP, подключись: root@109.69.22.112 (пароль от сервера)
+2. Скопируй 3 файла:
+   Локально:  C:\Users\user\Desktop\cline\impulse-bot\miniapp\server.js
+   На сервер: /opt/impulse-bot/miniapp/server.js
+
+   Локально:  C:\Users\user\Desktop\cline\impulse-bot\miniapp\public\index.html
+   На сервер: /opt/impulse-bot/miniapp/public/index.html
+
+   Локально:  C:\Users\user\Desktop\cline\impulse-bot\pm2.config.js
+   На сервер: /opt/impulse-bot/pm2.config.js
+
+=== ШАГ 1: Проверить что файлы на месте (PuTTY) ===
+
+ls -la /opt/impulse-bot/miniapp/
+ls -la /opt/impulse-bot/pm2.config.js
+
+=== ШАГ 2: Установить зависимости ===
+
+cd /opt/impulse-bot && npm install express 2>/dev/null && echo "=== express OK ==="
+
+=== ШАГ 3: Обновить nginx (добавить /miniapp location) ===
+
+cat > /etc/nginx/sites-enabled/default << 'NGINX'
+server {
+    listen 80;
+    server_name 109.69.22.112;
+    client_max_body_size 20m;
+
+    location /webchat {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+        proxy_buffering off;
+    }
+
+    location /miniapp {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+NGINX
+
+nginx -t && systemctl reload nginx && echo "=== Nginx OK ==="
+
+=== ШАГ 4: Запустить miniapp через PM2 ===
+
+cd /opt/impulse-bot && pm2 start pm2.config.js --only impulse-miniapp && pm2 save && echo "=== PM2 OK ==="
+
+=== ШАГ 5: Проверить ===
+
+pm2 status
+curl -s http://localhost:3001/health
+curl -s http://109.69.22.112/miniapp/health
+
+=== ШАГ 6: VK Base URL ===
+Перейди на https://dev.vk.com/ru/mini-apps/settings/general/information и укажи:
+  Base URL: https://109.69.22.112/miniapp
+
+================================================================

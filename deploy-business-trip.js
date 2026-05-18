@@ -1,0 +1,72 @@
+const { Client } = require('ssh2');
+const fs = require('fs');
+const path = require('path');
+
+const conn = new Client();
+
+const config = {
+  host: '109.69.22.112',
+  port: 22,
+  username: 'root',
+  password: 'And716443@',
+  readyTimeout: 30000,
+  keepaliveInterval: 10000,
+};
+
+const files = [
+  { local: path.join(__dirname, 'controllers', 'sales.js'), remote: '/opt/impulse-bot/controllers/sales.js' },
+  { local: path.join(__dirname, 'controllers', 'report.js'), remote: '/opt/impulse-bot/controllers/report.js' },
+  { local: path.join(__dirname, 'services', 'googleSheets.js'), remote: '/opt/impulse-bot/services/googleSheets.js' },
+  { local: path.join(__dirname, 'webchat', 'server.js'), remote: '/opt/impulse-bot/webchat/server.js' },
+];
+
+conn.on('ready', () => {
+  console.log('SSH connected!');
+
+  conn.sftp((err, sftp) => {
+    if (err) { console.error('SFTP error:', err); conn.end(); process.exit(1); }
+
+    let uploaded = 0;
+    files.forEach((file) => {
+      const content = fs.readFileSync(file.local);
+      console.log(`Uploading ${file.remote} (${content.length} bytes)`);
+      const ws = sftp.createWriteStream(file.remote, { mode: 0o644 });
+      ws.on('close', () => {
+        console.log(`  OK: ${file.remote}`);
+        uploaded++;
+        if (uploaded === files.length) {
+          console.log('All files uploaded. Restarting PM2...');
+          conn.exec('cd /opt/impulse-bot && pm2 restart all && pm2 status', (e, stream) => {
+            let out = '';
+            stream.on('data', d => out += d);
+            stream.stderr.on('data', d => out += d);
+            stream.on('close', code => {
+              console.log(`PM2 restart: exit ${code}\n${out}`);
+              console.log('Waiting 3s for health check...');
+              conn.exec('sleep 3 && curl -s http://localhost:3001/health && echo "" && curl -s http://localhost:3002/health', (e2, s2) => {
+                let h = '';
+                s2.on('data', d => h += d);
+                s2.on('close', () => {
+                  console.log('Health:', h.trim());
+                  conn.end();
+                  console.log('Done!');
+                  process.exit(0);
+                });
+              });
+            });
+          });
+        }
+      });
+      ws.on('error', e => { console.error('Upload error:', e); conn.end(); process.exit(1); });
+      ws.end(content);
+    });
+  });
+});
+
+conn.on('error', (err) => {
+  console.error('SSH error:', err.message);
+  process.exit(1);
+});
+
+console.log(`Connecting to ${config.host}:${config.port}...`);
+conn.connect(config);

@@ -1,0 +1,82 @@
+{
+  "current_account_index": 0,
+  "accounts": {
+    "C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3": {
+      "failures": 0,
+      "last_failure_time": 0.0,
+      "models_cached_at": 1779142014.5630484,
+      "stats": {
+        "total_requests": 0,
+        "successful_requests": 0,
+        "failed_requests": 0
+      }
+    }
+  },
+  "model_to_accounts": {
+    "auto-kiro": {
+      "accounts": [
+        "C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3"
+      ]
+    },
+    "claude-haiku-4.5": {
+      "accounts": [
+        "C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3"
+      ]
+    },
+    "claude-opus-4.5": {
+      "accounts": [
+        "C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3"
+      ]
+    },
+    "claude-opus-4.6": {
+      "accounts": [
+        "C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3"
+      ]
+    },
+    "claude-opus-4.7": {
+      "accounts": [
+        "C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3"
+      ]
+    },
+    "claude-sonnet-4": {
+      "accounts": [
+        "C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3"
+      ]
+    },
+    "claude-sonnet-4.5": {
+      "accounts": [
+        "C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3"
+      ]
+    },
+    "claude-sonnet-4.6": {
+      "accounts": [
+        "C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3"
+      ]
+    },
+    "deepseek-3.2": {
+      "accounts": [
+        "C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3"
+      ]
+    },
+    "glm-5": {
+      "accounts": [
+        "C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3"
+      ]
+    },
+    "minimax-m2.1": {
+      "accounts": [
+        "C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3"
+      ]
+    },
+    "minimax-m2.5": {
+      "accounts": [
+        "C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3"
+      ]
+    },
+    "qwen3-coder-next": {
+      "accounts": [
+        "C:\\Users\\user\\AppData\\Local\\Kiro-Cli\\data.sqlite3"
+      ]
+    }
+  }
+}
