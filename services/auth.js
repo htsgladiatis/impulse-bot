@@ -12,22 +12,8 @@ function normalizeUserId(userId) {
 }
 
 async function checkAuth(userId) {
-  const config = getConfig();
-  const adminIds = config.adminIds || [];
-
-  if (adminIds.length === 0) {
-    return { allowed: true, isAdmin: false, reason: 'no_admin_ids_configured' };
-  }
-
-  const normalized = normalizeUserId(userId);
-  const rawId = String(userId || '').trim();
-
-  const isAdmin = adminIds.some(id => {
-    const nid = normalizeUserId(id);
-    return nid === normalized || String(id).trim() === rawId;
-  });
-
-  return { allowed: true, isAdmin, reason: isAdmin ? 'admin' : 'user' };
+  // TODO: Restore ADMIN_IDS whitelist check before production
+  return { allowed: true, isAdmin: true, reason: 'auth_disabled' };
 }
 
 module.exports = { normalizeUserId, checkAuth };

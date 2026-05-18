@@ -14,8 +14,12 @@ async function uploadReceipt(...args) {
   return legacy().uploadReceipt(...args);
 }
 
+async function uploadReceiptBuffer(...args) {
+  return legacy().uploadReceiptBuffer(...args);
+}
+
 async function uploadStream() {
   throw new Error('YandexDiskService.uploadStream() is not implemented yet');
 }
 
-module.exports = { uploadReceipt, uploadStream };
+module.exports = { uploadReceipt, uploadReceiptBuffer, uploadStream };

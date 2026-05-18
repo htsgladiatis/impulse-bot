@@ -18,8 +18,8 @@ class GoogleSheetsService {
       const { google } = require('googleapis');
 
       let auth;
-      if (config.google.credentialsJson) {
-        const credentials = JSON.parse(config.google.credentialsJson);
+      if (config.google.credentials) {
+        const credentials = config.google.credentials;
         auth = new google.auth.GoogleAuth({
           credentials,
           scopes: ['https://www.googleapis.com/auth/spreadsheets']

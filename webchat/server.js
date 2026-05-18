@@ -16,15 +16,15 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   maxHttpBufferSize: 10e6,
-  path: '/webchat',
+  path: '/webchat-ws',
   cors: { origin: '*' }
 });
 
 const PORT = process.env.WEBCHAT_PORT || 3002;
 
-// Serve socket.io client JS at /webchat/socket.io.js
-app.get('/webchat/socket.io.js', (req, res) => {
-  const clientPath = require.resolve('socket.io/client-dist/socket.io.js');
+// Serve socket.io client JS — nginx strips /webchat/ prefix so request arrives as /socket.io.js
+app.get('/socket.io.js', (req, res) => {
+  const clientPath = path.join(__dirname, 'node_modules', 'socket.io', 'client-dist', 'socket.io.js');
   res.sendFile(clientPath);
 });
 
