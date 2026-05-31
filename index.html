@@ -467,7 +467,7 @@
     });
 
     // ===== SOCKET & CHAT =====
-    const socket = io('https://109.69.22.112', {
+    const socket = io('https://109-69-22-112.nip.io', {
       path: '/webchat-ws',
       reconnection: true,
       reconnectionDelay: 1000,
@@ -513,8 +513,27 @@
       connectionStatus.style.color = '#e74c3c';
     });
     socket.on('connect_error', (err) => {
-      connectionStatus.textContent = '● Ошибка: ' + escapeHTML(err.message);
+      let msg = err.message || '';
+      if (msg.includes('xhr poll error') || msg.includes('websocket error')) {
+        msg = 'Не удаётся подключиться к серверу. Попробуйте обновить страницу или проверьте соединение.';
+      }
+      connectionStatus.textContent = '● ' + escapeHTML(msg);
       connectionStatus.style.color = '#e74c3c';
+      if (!document.getElementById('retryBtn')) {
+        const retryBtn = document.createElement('button');
+        retryBtn.id = 'retryBtn';
+        retryBtn.textContent = '🔄 Переподключиться';
+        retryBtn.style.marginLeft = '10px';
+        retryBtn.style.padding = '4px 10px';
+        retryBtn.style.fontSize = '12px';
+        retryBtn.style.cursor = 'pointer';
+        retryBtn.onclick = () => { retryBtn.remove(); socket.connect(); };
+        connectionStatus.parentNode.insertBefore(retryBtn, connectionStatus.nextSibling);
+      }
+    });
+    socket.on('connect', () => {
+      const retryBtn = document.getElementById('retryBtn');
+      if (retryBtn) retryBtn.remove();
     });
 
     // Bot message handler
