@@ -24,6 +24,7 @@ const SALES_HEADERS = [
   { header: 'Инкассация', key: 'encashment', width: 16 },
   { header: 'Итого выручка', key: 'totalRevenue', width: 16 },
   { header: 'Фото чека', key: 'receiptPhoto', width: 15 },
+  { header: 'Командировочная надбавка', key: 'businessTripAllowance', width: 22 },
   { header: 'Комментарий', key: 'comment', width: 25 },
   { header: 'ID транзакции', key: 'transactionId', width: 28 },
 ];
@@ -132,6 +133,7 @@ async function appendSaleRow(data) {
     encashment: data.encashment || '',
     totalRevenue: data.totalRevenue || '',
     receiptPhoto: data.receiptPhoto || '',
+    businessTripAllowance: data.businessTripAllowance || '',
     comment: data.comment || ''
   });
 

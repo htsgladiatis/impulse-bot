@@ -86,7 +86,7 @@ class GoogleSheetsService {
     if (this.enabled) {
       try {
         const config = getConfig();
-        // Порядок колонок = A:N (14 колонок), совпадает с шагами бота
+        // Порядок колонок = A:O (15 колонок), совпадает с шагами бота
         // Префикс "'" принудительно заставляет Google Sheets хранить как текст
         const ts = data.timestamp ? "'" + data.timestamp : '';
         const row = [
@@ -100,9 +100,9 @@ class GoogleSheetsService {
           data.cashless || 0,        // H: Безналичные (шаг 8)
           data.credit || 0,          // I: Кредит (шаг 9)
           data.encashment || 0,      // J: Инкассация (шаг 10)
-          data.businessTripAllowance || 0, // K: Командировочная
-          data.totalRevenue || 0,    // L: Итого
-          data.receiptUrl || '',     // M: Чек (шаг 11)
+          data.totalRevenue || 0,    // K: Итого
+          data.receiptUrl || '',     // L: Фото чека (шаг 11)
+          data.businessTripAllowance || 0, // M: Командировочная надбавка
           '',                        // N: Комментарий
           data.transactionId || ''   // O: ID транзакции
         ];
@@ -179,7 +179,7 @@ class GoogleSheetsService {
       const config = getConfig();
       await this.sheets.spreadsheets.values.update({
         spreadsheetId: config.google.spreadsheetId,
-        range: `Продажи_Заголовки!M${rowIdx + 1}`,
+        range: `Продажи_Заголовки!L${rowIdx + 1}`,
         valueInputOption: 'USER_ENTERED',
         resource: { values: [[receiptUrl]] }
       });
