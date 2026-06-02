@@ -14,18 +14,6 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// --- VK Apps: Callback API для подтверждения сервера ---
-app.post('/vk-callback', (req, res) => {
-  const { type, group_id, secret } = req.body;
-  if (type === 'confirmation') {
-    return res.send(config.vk.confirmationCode || 'no_code');
-  }
-  if (secret !== config.vk.secretKey) {
-    return res.send('ok');
-  }
-  res.send('ok');
-});
-
 // --- Health check ---
 app.get('/health', (_req, res) => res.json({ status: 'ok', uptime: process.uptime() }));
 
@@ -33,13 +21,20 @@ app.get('/health', (_req, res) => res.json({ status: 'ok', uptime: process.uptim
 app.get('/api/ref', async (_req, res) => {
   try {
     const r = await ref.getRef();
-    res.json({ ok: true, data: r });
+    // Transform to legacy format for backward compatibility with miniapp client
+    const data = {
+      ...r,
+      cities: ref.getCitiesList(),
+      terminals: ref.getTerminalsList(),
+      terminalCityMap: ref.getTerminalCityMap()
+    };
+    res.json({ ok: true, data });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }
 });
 
-// --- API: Сессии (in-memory, привязка по vk_user_id) ---
+// --- API: Сессии (in-memory) ---
 const sessions = new Map();
 
 function getSession(userId) {
@@ -90,6 +85,7 @@ function sanitizeSession(s) {
     credit: s.credit,
     encashment: s.encashment,
     receiptUrl: s.receiptUrl,
+    businessTripAllowance: s.businessTripAllowance,
     items: s.items || [],
     timestamp: s.timestamp,
     transactionId: s.transactionId,
@@ -104,7 +100,7 @@ app.post('/api/step', async (req, res) => {
   const s = getSession(userId);
   const r = await ref.getRef();
 
-  try {
+    try {
     switch (step) {
       case 'terminal_number':
         s.terminalNumber = value;
@@ -119,10 +115,18 @@ app.post('/api/step', async (req, res) => {
         s.step = 'city';
         break;
       case 'city':
+        if (value === '__back_channel') {
+          s.step = 'channel';
+          break;
+        }
         s.city = value;
         s.step = 'terminal';
         break;
       case 'terminal':
+        if (value === '__back_city') {
+          s.step = 'city';
+          break;
+        }
         s.terminal = value;
         s.step = 'cash';
         break;
@@ -152,9 +156,15 @@ app.post('/api/step', async (req, res) => {
           s.step = 'waiting_receipt';
         } else {
           s.receiptUrl = '';
-          s.step = 'sale_saved';
-          await _saveSale(s, userId);
+          s.step = 'business_trip';
         }
+        break;
+      case 'business_trip':
+        const bt = parseNum(value);
+        if (bt === null) return res.status(400).json({ ok: false, error: 'Введите число' });
+        s.businessTripAllowance = bt;
+        s.step = 'sale_saved';
+        await _saveSale(s, userId);
         break;
       case 'waiting_receipt':
         // receipt URL will be uploaded separately
@@ -255,6 +265,7 @@ async function _saveSale(s, userId) {
     cashless: s.cashless || 0,
     credit: s.credit || 0,
     encashment: s.encashment || 0,
+    businessTripAllowance: s.businessTripAllowance || 0,
     totalRevenue: report.calculateTotalRevenue(s),
     receiptUrl: s.receiptUrl || '',
   };
@@ -273,10 +284,9 @@ async function start() {
   await ref.load();
   await sheets.init();
   app.listen(PORT, () => {
-    console.log(`📱 VK Mini App server running on port ${PORT}`);
+    console.log(`📱 Mini App server running on port ${PORT}`);
     console.log(`   Static: http://localhost:${PORT}`);
     console.log(`   Health: http://localhost:${PORT}/health`);
-    console.log(`   VK Callback: POST http://localhost:${PORT}/vk-callback`);
   });
 }
 

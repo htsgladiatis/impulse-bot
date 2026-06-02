@@ -155,12 +155,17 @@ class ImpulseBot {
 
   _formatItemLabel(key, item) {
     if (key === 'cities') {
-      const typeLabel = ref.TYPE_LABELS[item.type] || item.type;
+      // Поддержка старого формата (строки) и нового (объекты)
+      if (typeof item === 'string') return item;
+      const typeLabel = ref.TYPE_LABELS[item.type] || item.type || '';
       return `${item.name} (${typeLabel})`;
     }
     if (key === 'terminals') {
-      const typeLabel = ref.TYPE_LABELS[item.type] || item.type;
-      return `${item.name} — ${item.city} (${typeLabel})`;
+      // Поддержка старого формата (строки) и нового (объекты)
+      if (typeof item === 'string') return item;
+      const typeLabel = ref.TYPE_LABELS[item.type] || item.type || '';
+      const cityLabel = item.city || '';
+      return `${item.name} — ${cityLabel} (${typeLabel})`;
     }
     return item;
   }

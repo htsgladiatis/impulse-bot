@@ -9,7 +9,6 @@ const path = require('path');
 const ref = require('../services/refDictionary');
 const sheets = require('../services/googleSheets');
 const cart = require('../controllers/cart');
-const sales = require('../controllers/sales');
 const report = require('../controllers/report');
 
 const app = express();
@@ -50,7 +49,8 @@ function sendBot(socket, session, text, opts = {}) {
     stepNum: opts.stepNum || null,
     buttons: opts.buttons || null,
     paginated: opts.paginated || false,
-    fileUpload: opts.fileUpload || false
+    fileUpload: opts.fileUpload || false,
+    backButton: opts.backButton || null
   });
 }
 
@@ -58,7 +58,7 @@ function sendBot(socket, session, text, opts = {}) {
 io.on('connection', (socket) => {
   console.log(`🔌 Connected: ${socket.id}`);
 
-  const session = sales.createInitialSession('web-user', 'web');
+  const session = createInitialSession('web-user', 'web');
   session._socketId = socket.id;
   sessions.set(socket.id, session);
 
@@ -98,8 +98,8 @@ io.on('connection', (socket) => {
 
     if (!data || !data.data) {
       s.receiptUrl = '';
-      sendBot(socket, s, '⚠️ Файл не получен, продолжаем без фото.');
-      await saveAndStartItems(socket, s);
+      sendBot(socket, s, '⚠️ Файл не получен, продолжаем без фото.\n\n✈️ Шаг 11/11 — Командировочная надбавка (0 если нет):');
+      s.step = 'business_trip';
       return;
     }
 
@@ -117,27 +117,24 @@ io.on('connection', (socket) => {
       const pathModule = require('path');
 
       const ext = data.name ? pathModule.extname(data.name) : '.jpg';
-      const tmpFile = pathModule.join(os.tmpdir(), `receipt_${s.transactionId}${ext}`);
-      fs.writeFileSync(tmpFile, buffer);
 
-      const receiptUrl = await yandexDisk.uploadReceipt(tmpFile, s.transactionId, data.name || `receipt${ext}`);
-
-      try { fs.unlinkSync(tmpFile); } catch(e) {}
+      // Use uploadReceiptBuffer with the buffer directly (uploadReceipt expects a Telegram URL)
+      const receiptUrl = await yandexDisk.uploadReceiptBuffer(buffer, s.transactionId, data.name || `receipt${ext}`);
 
       if (receiptUrl) {
         s.receiptUrl = receiptUrl;
-        sendBot(socket, s, `✅ Фото загружено!\n🔗 ${receiptUrl}`);
+        sendBot(socket, s, `✅ Фото загружено!\n🔗 ${receiptUrl}\n\n✈️ Шаг 11/11 — Командировочная надбавка (0 если нет):`);
       } else {
         s.receiptUrl = '';
-        sendBot(socket, s, '⚠️ Не удалось загрузить фото. Продолжаем без него.');
+        sendBot(socket, s, '⚠️ Не удалось загрузить фото. Продолжаем без него.\n\n✈️ Шаг 11/11 — Командировочная надбавка (0 если нет):');
       }
     } catch (err) {
       console.error('File upload error:', err.message);
       s.receiptUrl = '';
-      sendBot(socket, s, '⚠️ Ошибка загрузки. Продолжаем без фото.');
+      sendBot(socket, s, '⚠️ Ошибка загрузки. Продолжаем без фото.\n\n✈️ Шаг 11/11 — Командировочная надбавка (0 если нет):');
     }
 
-    await saveAndStartItems(socket, s);
+    s.step = 'business_trip';
   });
 
   socket.on('disconnect', () => {
@@ -244,8 +241,13 @@ async function handleText(socket, s, text) {
       const v = parseNum(text);
       if (v === null) { sendBot(socket, s, '⚠️ Введите число:'); return; }
       s.encashment = v;
-      s.step = 'business_trip';
-      sendBot(socket, s, `✅ Инкассация: ${v} ₽\n\n✈️ Шаг 10/11 — Командировочная надбавка (0 если нет):`, { stepNum: 10 });
+      s.step = 'receipt_confirm';
+      sendBot(socket, s, `✅ Инкассация: ${v} ₽\n\n📸 Шаг 10/11 — Загрузить фото чека?`, {
+        buttons: [
+          { text: '✅ Да, загрузить', value: 'Да_чек' },
+          { text: '❌ Нет, продолжить', value: 'Нет_чек' }
+        ], stepNum: 10
+      });
       break;
     }
 
@@ -253,13 +255,7 @@ async function handleText(socket, s, text) {
       const v = parseNum(text);
       if (v === null) { sendBot(socket, s, '⚠️ Введите число:'); return; }
       s.businessTripAllowance = v;
-      s.step = 'receipt_confirm';
-      sendBot(socket, s, `✅ Командировочная: ${v} ₽\n\n📸 Шаг 11/11 — Загрузить фото чека?`, {
-        buttons: [
-          { text: '✅ Да, загрузить', value: 'Да_чек' },
-          { text: '❌ Нет, продолжить', value: 'Нет_чек' }
-        ], stepNum: 11
-      });
+      await saveAndStartItems(socket, s);
       break;
     }
 
@@ -319,7 +315,9 @@ async function handleButton(socket, s, value) {
       s.channel = value;
       s.step = 'city';
       sendBot(socket, s, `✅ Канал: ${value}\n\n🏙️ Шаг 4/11 — Город:`, {
-        buttons: (r.cities || []).map(c => ({ text: c, value: c })), stepNum: 4
+        buttons: ref.getCitiesList().map(c => ({ text: c, value: c })),
+        stepNum: 4,
+        backButton: { text: '↩️ Назад к каналу', value: '__back_channel' }
       });
       break;
 
@@ -327,11 +325,23 @@ async function handleButton(socket, s, value) {
       s.city = value;
       s.step = 'terminal';
       sendBot(socket, s, `✅ Город: ${value}\n\n📍 Шаг 5/11 — Точка:`, {
-        buttons: (r.terminals || []).map(t => ({ text: t, value: t })), stepNum: 5, paginated: true
+        buttons: ref.getTerminalsByCity(s.city).map(t => ({ text: t, value: t })),
+        stepNum: 5,
+        paginated: true,
+        backButton: { text: '↩️ Назад к городу', value: '__back_city' }
       });
       break;
 
     case 'terminal':
+      if (value === '__back_city') {
+        s.step = 'city';
+        const r = await getRef();
+        sendBot(socket, s, `🏙️ Шаг 4/11 — Город:`, {
+          buttons: ref.getCitiesList().map(c => ({ text: c, value: c })), stepNum: 4
+        });
+        break;
+      }
+
       s.terminal = value;
       s.step = 'cash';
       sendBot(socket, s, `✅ Точка: ${value}\n\n💰 Шаг 6/11 — Наличные (за день):`, { stepNum: 6 });
@@ -345,14 +355,16 @@ async function handleButton(socket, s, value) {
         });
       } else {
         s.receiptUrl = '';
-        await saveAndStartItems(socket, s);
+        s.step = 'business_trip';
+        sendBot(socket, s, `✈️ Шаг 11/11 — Командировочная надбавка (0 если нет):`);
       }
       break;
 
     case 'waiting_receipt':
       if (value === 'skip') {
         s.receiptUrl = '';
-        await saveAndStartItems(socket, s);
+        s.step = 'business_trip';
+        sendBot(socket, s, `✈️ Шаг 11/11 — Командировочная надбавка (0 если нет):`);
       }
       break;
 
@@ -442,10 +454,37 @@ async function handleButton(socket, s, value) {
 }
 
 // ========== HELPERS ==========
+function createInitialSession(platform) {
+  return { step: 'terminal_number', platform, timestamp: new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' }), items: [], lastMsgId: null };
+}
+
+function ensureTransactionId(session) {
+  if (!session.transactionId) session.transactionId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return session.transactionId;
+}
+
+function buildSaleRecord(session, userId) {
+  ensureTransactionId(session);
+  return {
+    transactionId: session.transactionId, timestamp: session.timestamp, telegramId: userId,
+    username: session.username, terminalNumber: session.terminalNumber, manager: session.manager,
+    channel: session.channel, city: session.city, terminal: session.terminal,
+    cash: session.cash || 0, cashless: session.cashless || 0, credit: session.credit || 0,
+    encashment: session.encashment || 0, businessTripAllowance: session.businessTripAllowance || 0,
+    totalRevenue: report.calculateTotalRevenue(session),
+    receiptUrl: session.receiptUrl || '',
+  };
+}
+
+function formatSaleSavedMessage(session) {
+  const t = report.calculateTotalRevenue(session);
+  return `✅ Продажа записана!\n\n📅 ${session.timestamp}\n🔢 Терминал #${session.terminalNumber} | 📍 ${session.terminal}\n👤 ${session.manager} | 📊 ${session.channel}\n🏙️ ${session.city}\n💰 Налич: ${session.cash} | 💳 Безнал: ${session.cashless}\n🏦 Кредит: ${session.credit} | 🚚 Инкассация: ${session.encashment}\n🧳 Командировка: ${session.businessTripAllowance || 0}\n📊 Итого: ${t} ₽\n\n📦 Теперь добавим товары...`;
+}
+
 async function saveAndStartItems(socket, s) {
-  const ok = await sheets.appendSale(sales.buildSaleRecord(s, 'web-user'));
+  const ok = await sheets.appendSale(buildSaleRecord(s, 'web-user'));
   if (ok) {
-    sendBot(socket, s, sales.formatSaleSavedMessage(s));
+    sendBot(socket, s, formatSaleSavedMessage(s));
     await startProductFlow(socket, s);
   } else {
     sendBot(socket, s, '❌ Ошибка записи. Обновите страницу.');
@@ -485,7 +524,7 @@ async function finalSubmit(socket, s) {
   }
   sendBot(socket, s, report.formatFinalReport(s) + '\n\n🔄 Для новой записи — любой текст.');
 
-  const ns = sales.createInitialSession('web-user', 'web');
+  const ns = createInitialSession('web-user', 'web');
   ns._socketId = socket.id;
   sessions.set(socket.id, ns);
 }
