@@ -5,7 +5,6 @@ const yandexDisk = require('./services/yandexDisk');
 const ref = require('./services/refDictionary');
 const cart = require('./controllers/cart');
 const report = require('./controllers/report');
-const sales = require('./controllers/sales');
 
 // Длинные названия товаров — будут в 1 колонку
 const LONG_PRODUCTS = [
@@ -41,7 +40,7 @@ function productButtons(list, cols, sessionId) {
   return { inline_keyboard: rows };
 }
 
-function paginatedButtons(list, page, pageSize) {
+function paginatedButtons(list, page, pageSize, extraRow) {
   const totalPages = Math.ceil(list.length / pageSize);
   const start = page * pageSize;
   const end = Math.min(start + pageSize, list.length);
@@ -56,6 +55,8 @@ function paginatedButtons(list, page, pageSize) {
   navRow.push({ text: `📄 ${page + 1} / ${totalPages}`, callback_data: 'pg|info' });
   if (page < totalPages - 1) navRow.push({ text: 'Вперёд ▶️', callback_data: 'pg|forward' });
   rows.push(navRow);
+
+  if (extraRow) rows.push(extraRow);
 
   return { inline_keyboard: rows };
 }
@@ -152,15 +153,28 @@ class ImpulseBot {
     );
   }
 
+  _formatItemLabel(key, item) {
+    if (key === 'cities') {
+      const typeLabel = ref.TYPE_LABELS[item.type] || item.type;
+      return `${item.name} (${typeLabel})`;
+    }
+    if (key === 'terminals') {
+      const typeLabel = ref.TYPE_LABELS[item.type] || item.type;
+      return `${item.name} — ${item.city} (${typeLabel})`;
+    }
+    return item;
+  }
+
   async showRefSection(chatId, key) {
     const data = await ref.getRef();
     const items = data[key] || [];
     const label = ref.LABELS[key];
-    const list = items.map((item, i) => `${i + 1}. ${item}`).join('\n') || '(пусто)';
+    const list = items.map((item, i) => `${i + 1}. ${this._formatItemLabel(key, item)}`).join('\n') || '(пусто)';
 
     // Кнопки для каждого элемента — нажатие открывает меню перемещения
     const pickButtons = items.map((item, idx) => {
-      const short = item.length > 40 ? item.substring(0, 37) + '...' : item;
+      const labelText = this._formatItemLabel(key, item);
+      const short = labelText.length > 40 ? labelText.substring(0, 37) + '...' : labelText;
       return [{ text: `${idx + 1}. ${short}`, callback_data: `adm_pick|${key}|${idx}` }];
     });
 
@@ -181,7 +195,7 @@ class ImpulseBot {
   async showPickMenu(chatId, userId, key, idx) {
     const data = await ref.getRef();
     const items = data[key] || [];
-    const item = items[idx] || '(?)';
+    const item = this._formatItemLabel(key, items[idx]) || '(?)';
     const total = items.length;
 
     await this.bot.sendMessage(chatId,
@@ -207,7 +221,7 @@ class ImpulseBot {
 
     console.log(`📥 /start от ${username} (${userId})`);
 
-    this.sessions.set(userId, sales.createInitialSession(username));
+    this.sessions.set(userId, this.createInitialSession(username));
 
     await this.sendAndReplace(chatId, userId, this.sessions.get(userId),
       `📅 Дата: ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}\n\n` +
@@ -225,7 +239,7 @@ class ImpulseBot {
     await this.bot.answerCallbackQuery(query.id);
 
     // === АДМИН callbacks ===
-    if (data.startsWith('adm|') || data.startsWith('adm_add|') || data.startsWith('adm_del|') || data.startsWith('adm_delitem|') || data.startsWith('adm_pick|') || data.startsWith('adm_totop|') || data.startsWith('adm_up10|') || data.startsWith('adm_down10|') || data.startsWith('adm_askpos|')) {
+    if (data.startsWith('adm|') || data.startsWith('adm_add|') || data.startsWith('adm_del|') || data.startsWith('adm_delitem|') || data.startsWith('adm_pick|') || data.startsWith('adm_totop|') || data.startsWith('adm_up10|') || data.startsWith('adm_down10|') || data.startsWith('adm_askpos|') || data.startsWith('adm_type|') || data.startsWith('adm_city|')) {
       if (!this.adminSessions.has(userId)) return;
       await this.handleAdminCallback(chatId, userId, data);
       return;
@@ -241,11 +255,30 @@ class ImpulseBot {
       } else if (action === 'back') {
         session._page = Math.max(0, (session._page || 0) - 1);
       }
-      const r = await ref.getRef();
       await this.sendAndReplace(chatId, userId, session,
         `📍 Шаг 5/10 — Выберите точку (название):`,
-        { reply_markup: paginatedButtons(r.terminals, session._page || 0, 10) }
+        { reply_markup: paginatedButtons(ref.getTerminalsByCity(session.city), session._page || 0, 10, [{ text: '↩️ Назад к городу', callback_data: 'back|city' }]) }
       );
+      this.sessions.set(userId, session);
+    } else if (data.startsWith('back|')) {
+      const target = data.split('|')[1];
+      if (target === 'city') {
+        session.step = 'city';
+        session._page = 0;
+        const cityKeyboard = gridButtons(ref.getCitiesList(), 3);
+        cityKeyboard.inline_keyboard.push([{ text: '↩️ Назад к каналу', callback_data: 'back|channel' }]);
+        await this.sendAndReplace(chatId, userId, session,
+          `🏙️ Шаг 4/10 — Выберите город:`,
+          { reply_markup: cityKeyboard }
+        );
+      } else if (target === 'channel') {
+        session.step = 'channel';
+        const r = await ref.getRef();
+        await this.sendAndReplace(chatId, userId, session,
+          `📊 Шаг 3/10 — Выберите канал продаж:`,
+          { reply_markup: gridButtons(r.channels, 2) }
+        );
+      }
       this.sessions.set(userId, session);
     } else if (data.startsWith('btn|')) {
       const value = data.split('|')[1];
@@ -283,15 +316,21 @@ class ImpulseBot {
       return;
     }
 
-    if (data.startsWith('adm|')) {
-      const key = data.split('|')[1];
-      await this.showRefSection(chatId, key);
-      return;
-    }
-
     if (data.startsWith('adm_add|')) {
       const key = data.split('|')[1];
       const session = this.sessions.get(userId) || {};
+      if (key === 'cities') {
+        session.step = 'admin_add_city_name';
+        this.sessions.set(userId, session);
+        await this.bot.sendMessage(chatId, `➕ Введите название нового города:`);
+        return;
+      }
+      if (key === 'terminals') {
+        session.step = 'admin_add_terminal_name';
+        this.sessions.set(userId, session);
+        await this.bot.sendMessage(chatId, `➕ Введите название новой точки:`);
+        return;
+      }
       session.step = 'admin_add';
       session.adminTarget = key;
       this.sessions.set(userId, session);
@@ -300,8 +339,92 @@ class ImpulseBot {
       return;
     }
 
-    if (data.startsWith('adm_del|')) {
+    // ----- City type selection -----
+    if (data.startsWith('adm_type|city|')) {
+      const type = data.split('|')[2];
+      const session = this.sessions.get(userId) || {};
+      const name = session.adminCityName;
+      if (!name) {
+        await this.bot.sendMessage(chatId, '❌ Ошибка: название города не найдено. Начните заново.');
+        session.step = null;
+        session.adminCityName = null;
+        this.sessions.set(userId, session);
+        await this.showRefSection(chatId, 'cities');
+        return;
+      }
+      const added = ref.addCity(name, type);
+      if (added) {
+        await ref.save(await ref.getRef());
+        await this.bot.sendMessage(chatId, `✅ Добавлен город: ${name} (${ref.TYPE_LABELS[type]})`);
+      } else {
+        await this.bot.sendMessage(chatId, `⚠️ Город «${name}» уже есть в списке.`);
+      }
+      session.step = null;
+      session.adminCityName = null;
+      this.sessions.set(userId, session);
+      await this.showRefSection(chatId, 'cities');
+      return;
+    }
+
+    // ----- Terminal city selection -----
+    if (data.startsWith('adm_city|terminal|')) {
+      const city = data.split('|')[2];
+      const session = this.sessions.get(userId) || {};
+      session.adminTerminalCity = city;
+      session.step = 'admin_add_terminal_type';
+      this.sessions.set(userId, session);
+      await this.bot.sendMessage(chatId,
+        `➕ Точка: «${session.adminTerminalName}»\nГород: ${city}\n\nВыберите тип:`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '🏛 Выставка', callback_data: 'adm_type|terminal|exhibition' }, { text: '🏥 Санаторий', callback_data: 'adm_type|terminal|sanatorium' }],
+              [{ text: '↩️ Отмена', callback_data: 'adm|terminals' }]
+            ]
+          }
+        }
+      );
+      return;
+    }
+
+    // ----- Terminal type selection -----
+    if (data.startsWith('adm_type|terminal|')) {
+      const type = data.split('|')[2];
+      const session = this.sessions.get(userId) || {};
+      const name = session.adminTerminalName;
+      const city = session.adminTerminalCity;
+      if (!name || !city) {
+        await this.bot.sendMessage(chatId, '❌ Ошибка: данные точки не найдены. Начните заново.');
+        session.step = null;
+        session.adminTerminalName = null;
+        session.adminTerminalCity = null;
+        this.sessions.set(userId, session);
+        await this.showRefSection(chatId, 'terminals');
+        return;
+      }
+      const added = ref.addTerminal(name, city, type);
+      if (added) {
+        await ref.save(await ref.getRef());
+        await this.bot.sendMessage(chatId, `✅ Добавлена точка: ${name} — ${city} (${ref.TYPE_LABELS[type]})`);
+      } else {
+        await this.bot.sendMessage(chatId, `⚠️ Точка «${name}» уже есть в списке.`);
+      }
+      session.step = null;
+      session.adminTerminalName = null;
+      session.adminTerminalCity = null;
+      this.sessions.set(userId, session);
+      await this.showRefSection(chatId, 'terminals');
+      return;
+    }
+
+    // adm| — показ раздела (после всех остальных adm_*)
+    if (data.startsWith('adm|')) {
       const key = data.split('|')[1];
+      await this.showRefSection(chatId, key);
+      return;
+    }
+
+    if (data.startsWith('adm_del|')) {
       const data2 = await ref.getRef();
       const items = data2[key] || [];
       if (items.length === 0) {
@@ -309,10 +432,10 @@ class ImpulseBot {
         return;
       }
       const label = ref.LABELS[key];
-      const buttons = items.map((item, idx) => [{
-        text: `🗑 ${item}`,
-        callback_data: `adm_delitem|${key}|${idx}`
-      }]);
+      const buttons = items.map((item, idx) => {
+        const labelText = this._formatItemLabel(key, item);
+        return [{ text: `🗑 ${labelText}`, callback_data: `adm_delitem|${key}|${idx}` }];
+      });
       buttons.push([{ text: '↩️ Назад', callback_data: `adm|${key}` }]);
       await this.bot.sendMessage(chatId, `🗑 Выберите что удалить из «${label}»:`, {
         reply_markup: { inline_keyboard: buttons }
@@ -325,11 +448,30 @@ class ImpulseBot {
       const key = parts[1];
       const idx = parseInt(parts[2]);
       const data2 = await ref.getRef();
-      const removed = data2[key][idx];
-      ref.arrayRemove(data2[key], removed);
-      await ref.save(data2);
-      const label = ref.LABELS[key];
-      await this.bot.sendMessage(chatId, `✅ Удалено из «${label}»: ${removed}`);
+      const items = data2[key] || [];
+      if (idx < 0 || idx >= items.length) {
+        await this.bot.sendMessage(chatId, '❌ Элемент не найден.');
+        await this.showRefSection(chatId, key);
+        return;
+      }
+
+      if (key === 'cities') {
+        const cityName = items[idx].name;
+        ref.removeCity(cityName);
+        await ref.save(await ref.getRef());
+        await this.bot.sendMessage(chatId, `✅ Удалён город: ${cityName}`);
+      } else if (key === 'terminals') {
+        const terminalName = items[idx].name;
+        ref.removeTerminal(terminalName);
+        await ref.save(await ref.getRef());
+        await this.bot.sendMessage(chatId, `✅ Удалена точка: ${terminalName}`);
+      } else {
+        const removed = items[idx];
+        ref.arrayRemove(data2[key], removed);
+        await ref.save(data2);
+        const label = ref.LABELS[key];
+        await this.bot.sendMessage(chatId, `✅ Удалено из «${label}»: ${removed}`);
+      }
       await this.showRefSection(chatId, key);
       return;
     }
@@ -406,7 +548,7 @@ class ImpulseBot {
       return;
     }
 
-    sales.ensureTransactionId(session);
+    this.ensureTransactionId(session);
 
     await this.sendAndReplace(chatId, userId, session, '⏳ Загружаю фото на Яндекс.Диск...');
 
@@ -420,8 +562,8 @@ class ImpulseBot {
 
       if (receiptUrl) {
         session.receiptUrl = receiptUrl;
-        await this.sendAndReplace(chatId, userId, session, `✅ Фото загружено!\n🔗 ${receiptUrl}`);
-        await this.saveSaleAndStartItems(chatId, userId, session);
+        await this.sendAndReplace(chatId, userId, session, `✅ Фото загружено!\n🔗 ${receiptUrl}\n\n✈️ Шаг 11/11 — Командировочная надбавка (0 если нет):`);
+        session.step = 'business_trip';
       } else {
         session.receiptUrl = '';
         await this.sendAndReplace(chatId, userId, session, '⚠️ Не удалось загрузить фото. Попробуйте ещё раз или пропустите.', {
@@ -469,27 +611,30 @@ class ImpulseBot {
         const channel = isIndex ? r.channels[idx] : value;
         session.channel = channel;
         session.step = 'city';
+        const cityKeyboard = gridButtons(ref.getCitiesList(), 3);
+        cityKeyboard.inline_keyboard.push([{ text: '↩️ Назад к каналу', callback_data: 'back|channel' }]);
         await this.sendAndReplace(chatId, userId, session,
           `✅ Канал: ${channel}\n\n🏙️ Шаг 4/10 — Выберите город:`,
-          { reply_markup: gridButtons(r.cities, 3) }
+          { reply_markup: cityKeyboard }
         );
         break;
       }
 
       case 'city': {
-        const city = isIndex ? r.cities[idx] : value;
+        const city = isIndex ? ref.getCitiesList()[idx] : value;
         session.city = city;
         session.step = 'terminal';
         session._page = 0;
         await this.sendAndReplace(chatId, userId, session,
           `✅ Город: ${city}\n\n📍 Шаг 5/10 — Выберите точку (название):`,
-          { reply_markup: paginatedButtons(r.terminals, 0, 10) }
+          { reply_markup: paginatedButtons(ref.getTerminalsByCity(session.city), 0, 10, [{ text: '↩️ Назад к городу', callback_data: 'back|city' }]) }
         );
         break;
       }
 
       case 'terminal': {
-        const terminal = isIndex ? r.terminals[idx] : value;
+        const terminals = ref.getTerminalsByCity(session.city);
+        const terminal = isIndex ? terminals[idx] : value;
         session.terminal = terminal;
         session.step = 'cash';
         await this.sendAndReplace(chatId, userId, session,
@@ -504,7 +649,8 @@ class ImpulseBot {
           await this.sendAndReplace(chatId, userId, session, '📸 Отправьте фото чека:');
         } else {
           session.receiptUrl = '';
-          await this.saveSaleAndStartItems(chatId, userId, session);
+          session.step = 'business_trip';
+          await this.sendAndReplace(chatId, userId, session, `✈️ Шаг 11/11 — Командировочная надбавка (0 если нет):`);
         }
         break;
 
@@ -514,7 +660,8 @@ class ImpulseBot {
           await this.sendAndReplace(chatId, userId, session, '📸 Отправьте фото чека:');
         } else if (value === 'skip_photo') {
           session.receiptUrl = '';
-          await this.saveSaleAndStartItems(chatId, userId, session);
+          session.step = 'business_trip';
+          await this.sendAndReplace(chatId, userId, session, `✈️ Шаг 11/11 — Командировочная надбавка (0 если нет):`);
         }
         break;
 
@@ -583,7 +730,53 @@ class ImpulseBot {
       return;
     }
 
-    // === АДМИН: ввод нового значения ===
+    // === АДМИН: ввод названия города ===
+    if (session.step === 'admin_add_city_name') {
+      session.adminCityName = text;
+      session.step = 'admin_add_city_type';
+      await this.bot.sendMessage(chatId,
+        `➕ Город: «${text}»\n\nВыберите тип:`,
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '🏛 Выставка', callback_data: 'adm_type|city|exhibition' }, { text: '🏥 Санаторий', callback_data: 'adm_type|city|sanatorium' }],
+              [{ text: '↩️ Отмена', callback_data: 'adm|cities' }]
+            ]
+          }
+        }
+      );
+      return;
+    }
+
+    // === АДМИН: ввод названия точки ===
+    if (session.step === 'admin_add_terminal_name') {
+      session.adminTerminalName = text;
+      session.step = 'admin_add_terminal_city';
+      const data = await ref.getRef();
+      const cities = data.cities || [];
+      if (cities.length === 0) {
+        await this.bot.sendMessage(chatId, '❌ Сначала добавьте хотя бы один город.');
+        session.step = null;
+        session.adminTerminalName = null;
+        await this.showRefSection(chatId, 'terminals');
+        return;
+      }
+      // Показываем города с типами
+      const cityButtons = cities.map(city => {
+        const cityName = typeof city === 'string' ? city : city.name;
+        const cityType = typeof city === 'object' && city.type ? city.type : null;
+        const typeLabel = cityType ? ` (${ref.TYPE_LABELS[cityType]})` : '';
+        return [{ text: `${cityName}${typeLabel}`, callback_data: `adm_city|terminal|${cityName}` }];
+      });
+      cityButtons.push([{ text: '↩️ Отмена', callback_data: 'adm|terminals' }]);
+      await this.bot.sendMessage(chatId,
+        `➕ Точка: «${text}»\n\nВыберите город:`,
+        { reply_markup: { inline_keyboard: cityButtons } }
+      );
+      return;
+    }
+
+    // === АДМИН: ввод нового значения (для строковых справочников) ===
     if (session.step === 'admin_add') {
       const key = session.adminTarget;
       const data = await ref.getRef();
@@ -650,7 +843,7 @@ class ImpulseBot {
         session.encashment = encashment;
         session.step = 'receipt_confirm';
         await this.sendAndReplace(chatId, userId, session,
-          `✅ Инкассация: ${encashment} ₽\n\n📸 Шаг 10/10 — Загрузить фото чека?`,
+          `✅ Инкассация: ${encashment} ₽\n\n📸 Шаг 10/11 — Загрузить фото чека?`,
           {
             reply_markup: {
               inline_keyboard: [
@@ -660,6 +853,13 @@ class ImpulseBot {
             }
           }
         );
+        break;
+
+      case 'business_trip':
+        const bt = this.parseNum(text);
+        if (bt === null) { await this.sendAndReplace(chatId, userId, session, '⚠️ Введите число:'); return; }
+        session.businessTripAllowance = bt;
+        await this.saveSaleAndStartItems(chatId, userId, session);
         break;
 
       case 'quantity':
@@ -760,6 +960,33 @@ class ImpulseBot {
     return isNaN(n) ? null : n;
   }
 
+  createInitialSession(platform) {
+    return { step: 'terminal_number', platform, timestamp: new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' }), items: [], lastMsgId: null };
+  }
+
+  ensureTransactionId(session) {
+    if (!session.transactionId) session.transactionId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    return session.transactionId;
+  }
+
+  buildSaleRecord(session, userId) {
+    this.ensureTransactionId(session);
+    return {
+      transactionId: session.transactionId, timestamp: session.timestamp, telegramId: userId,
+      username: session.username, terminalNumber: session.terminalNumber, manager: session.manager,
+      channel: session.channel, city: session.city, terminal: session.terminal,
+      cash: session.cash || 0, cashless: session.cashless || 0, credit: session.credit || 0,
+      encashment: session.encashment || 0, businessTripAllowance: session.businessTripAllowance || 0,
+      totalRevenue: report.calculateTotalRevenue(session),
+      receiptUrl: session.receiptUrl || '',
+    };
+  }
+
+  formatSaleSavedMessage(session) {
+    const t = report.calculateTotalRevenue(session);
+    return `✅ Продажа записана!\n\n📅 ${session.timestamp}\n🔢 Терминал #${session.terminalNumber} | 📍 ${session.terminal}\n👤 ${session.manager} | 📊 ${session.channel}\n🏙️ ${session.city}\n💰 Налич: ${session.cash} | 💳 Безнал: ${session.cashless}\n🏦 Кредит: ${session.credit} | 🚚 Инкассация: ${session.encashment}\n🧳 Командировка: ${session.businessTripAllowance || 0}\n📊 Итого: ${t} ₽\n\n📦 Теперь добавим товары...`;
+  }
+
   async handleEdit(chatId, userId, session, target) {
     const r = await ref.getRef();
     switch (target) {
@@ -825,10 +1052,10 @@ class ImpulseBot {
   }
 
   async saveSaleAndStartItems(chatId, userId, session) {
-    const success = await sheets.appendSale(sales.buildSaleRecord(session, userId));
+    const success = await sheets.appendSale(this.buildSaleRecord(session, userId));
 
     if (success) {
-      await this.sendAndReplace(chatId, userId, session, sales.formatSaleSavedMessage(session));
+      await this.sendAndReplace(chatId, userId, session, this.formatSaleSavedMessage(session));
       await this.startProductFlow(chatId, userId, session);
     } else {
       await this.bot.sendMessage(chatId, '❌ Ошибка записи. /start');
