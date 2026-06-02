@@ -154,18 +154,19 @@ class ImpulseBot {
   }
 
   _formatItemLabel(key, item) {
+    var TL = (ref && ref.TYPE_LABELS) || { exhibition: 'Выставка', sanatorium: 'Санаторий' };
     if (key === 'cities') {
-      // Поддержка старого формата (строки) и нового (объекты)
       if (typeof item === 'string') return item;
-      const typeLabel = ref.TYPE_LABELS[item.type] || item.type || '';
-      return `${item.name} (${typeLabel})`;
+      if (!item || typeof item !== 'object') return String(item);
+      var tl = TL[item.type] || item.type || '';
+      return item.name + ' (' + tl + ')';
     }
     if (key === 'terminals') {
-      // Поддержка старого формата (строки) и нового (объекты)
       if (typeof item === 'string') return item;
-      const typeLabel = ref.TYPE_LABELS[item.type] || item.type || '';
-      const cityLabel = item.city || '';
-      return `${item.name} — ${cityLabel} (${typeLabel})`;
+      if (!item || typeof item !== 'object') return String(item);
+      var tl2 = TL[item.type] || item.type || '';
+      var cl = item.city || '';
+      return item.name + ' \u2014 ' + cl + ' (' + tl2 + ')';
     }
     return item;
   }
@@ -200,22 +201,24 @@ class ImpulseBot {
   async showPickMenu(chatId, userId, key, idx) {
     const data = await ref.getRef();
     const items = data[key] || [];
-    const item = this._formatItemLabel(key, items[idx]) || '(?)';
+    const itemObj = items[idx] || {};
     const total = items.length;
-
-    await this.bot.sendMessage(chatId,
-      `📌 "${item}"\n📍 Позиция: ${idx + 1} из ${total}\n\nВыберите действие:`,
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '⏫ В начало списка', callback_data: `adm_totop|${key}|${idx}` }],
-            [{ text: '⬆️ На 10 вверх', callback_data: `adm_up10|${key}|${idx}` }, { text: '⬇️ На 10 вниз', callback_data: `adm_down10|${key}|${idx}` }],
-            [{ text: '📝 На конкретную позицию...', callback_data: `adm_askpos|${key}|${idx}` }],
-            [{ text: '↩️ Назад к списку', callback_data: `adm|${key}` }]
-          ]
-        }
-      }
-    );
+    const rows = [];
+    if (key === 'terminals' && itemObj && typeof itemObj === 'object') {
+      var cityText = itemObj.city ? ('\ud83c\udfe2 \u0413\u043e\u0440\u043e\u0434: ' + itemObj.city) : '\ud83c\udfe2 \u041f\u0440\u0438\u0432\u044f\u0437\u0430\u0442\u044c \u043a \u0433\u043e\u0440\u043e\u0434\u0443';
+      rows.push([{ text: cityText, callback_data: 'adm_chcity|' + key + '|' + idx }]);
+      var tl = itemObj.type === 'sanatorium' ? '\u0421\u0430\u043d\u0430\u0442\u043e\u0440\u0438\u0439' : '\u0412\u044b\u0441\u0442\u0430\u0432\u043a\u0430';
+      rows.push([{ text: '\ud83c\udfab \u0422\u0438\u043f: ' + tl, callback_data: 'adm_chtype|' + key + '|' + idx }]);
+    }
+    if (key === 'cities' && itemObj && typeof itemObj === 'object') {
+      var tl2 = itemObj.type === 'sanatorium' ? '\u0421\u0430\u043d\u0430\u0442\u043e\u0440\u0438\u0439' : '\u0412\u044b\u0441\u0442\u0430\u0432\u043a\u0430';
+      rows.push([{ text: '\ud83c\udfab \u0422\u0438\u043f: ' + tl2, callback_data: 'adm_chtype|' + key + '|' + idx }]);
+    }
+    rows.push([{ text: '\u2b06 \u0412 \u043d\u0430\u0447\u0430\u043b\u043e \u0441\u043f\u0438\u0441\u043a\u0430', callback_data: 'adm_totop|' + key + '|' + idx }]);
+    rows.push([{ text: '\u2b06 \u041d\u0430 10 \u0432\u0432\u0435\u0440\u0445', callback_data: 'adm_up10|' + key + '|' + idx }, { text: '\u2b07 \u041d\u0430 10 \u0432\u043d\u0438\u0437', callback_data: 'adm_down10|' + key + '|' + idx }]);
+    rows.push([{ text: '\ud83d\udcdd \u041d\u0430 \u043a\u043e\u043d\u043a\u0440\u0435\u0442\u043d\u0443\u044e \u043f\u043e\u0437\u0438\u0446\u0438\u044e...', callback_data: 'adm_askpos|' + key + '|' + idx }]);
+    rows.push([{ text: '\u21a9\ufe0f \u041d\u0430\u0437\u0430\u0434 \u043a \u0441\u043f\u0438\u0441\u043a\u0443', callback_data: 'adm|' + key }]);
+    await this.bot.sendMessage(chatId, '\ud83d\udccc "' + this._formatItemLabel(key, itemObj) + '"\n\ud83d\udccd \u041f\u043e\u0437\u0438\u0446\u0438\u044f: ' + (idx + 1) + ' \u0438\u0437 ' + total + '\n\n\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435:', { reply_markup: { inline_keyboard: rows } });
   }
 
   // ========== /start ==========
@@ -244,7 +247,7 @@ class ImpulseBot {
     await this.bot.answerCallbackQuery(query.id);
 
     // === АДМИН callbacks ===
-    if (data.startsWith('adm|') || data.startsWith('adm_add|') || data.startsWith('adm_del|') || data.startsWith('adm_delitem|') || data.startsWith('adm_pick|') || data.startsWith('adm_totop|') || data.startsWith('adm_up10|') || data.startsWith('adm_down10|') || data.startsWith('adm_askpos|') || data.startsWith('adm_type|') || data.startsWith('adm_city|')) {
+    if (data.startsWith('adm|') || data.startsWith('adm_add|') || data.startsWith('adm_del|') || data.startsWith('adm_delitem|') || data.startsWith('adm_pick|') || data.startsWith('adm_totop|') || data.startsWith('adm_up10|') || data.startsWith('adm_down10|') || data.startsWith('adm_askpos|') || data.startsWith('adm_type|') || data.startsWith('adm_city|') || data.startsWith('adm_chcity|') || data.startsWith('adm_chtype|') || data.startsWith('adm_setcity|') || data.startsWith('adm_settype|')) {
       if (!this.adminSessions.has(userId)) return;
       await this.handleAdminCallback(chatId, userId, data);
       return;
@@ -481,10 +484,72 @@ class ImpulseBot {
       return;
     }
 
+    if (data.startsWith('adm_chcity|')) {
+      var parts2 = data.split('|');
+      var key2 = parts2[1];
+      var idx2 = parseInt(parts2[2]);
+      var d2 = await ref.getRef();
+      var its2 = d2[key2] || [];
+      var cur2 = its2[idx2];
+      if (!cur2 || typeof cur2 !== 'object') { await this.bot.sendMessage(chatId, '\u274c Error'); return; }
+      var cities2 = d2.cities || [];
+      var btns2 = cities2.map(function(c) {
+        var cn = typeof c === 'string' ? c : c.name;
+        var ct = typeof c === 'object' && c.type ? c.type : null;
+        var tl = ct ? (' (' + ((ref.TYPE_LABELS || {})[ct] || ct) + ')') : '';
+        return [{ text: cn + tl, callback_data: 'adm_setcity|' + key2 + '|' + idx2 + '|' + cn }];
+      });
+      btns2.push([{ text: '\u21a9\ufe0f \u041e\u0442\u043c\u0435\u043d\u0430', callback_data: 'adm_pick|' + key2 + '|' + idx2 }]);
+      await this.bot.sendMessage(chatId, '\ud83c\udfe2 \u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0433\u043e\u0440\u043e\u0434 \u0434\u043b\u044f \u0442\u043e\u0447\u043a\u0438 \u00ab' + cur2.name + '\u00bb:', { reply_markup: { inline_keyboard: btns2 } });
+      return;
+    }
+    if (data.startsWith('adm_setcity|')) {
+      var p3 = data.split('|');
+      var k3 = p3[1]; var i3 = parseInt(p3[2]); var cn3 = p3[3];
+      var d3 = await ref.getRef();
+      var its3 = d3[k3] || [];
+      if (its3[i3] && typeof its3[i3] === 'object') {
+        its3[i3].city = cn3;
+        if (!its3[i3].type) its3[i3].type = 'exhibition';
+        await ref.save(d3);
+        await this.bot.sendMessage(chatId, '\u2705 \u0422\u043e\u0447\u043a\u0430 \u00ab' + its3[i3].name + '\u00bb \u2014 \u0433\u043e\u0440\u043e\u0434: ' + cn3);
+      } else { await this.bot.sendMessage(chatId, '\u274c Error'); }
+      await this.showRefSection(chatId, k3);
+      return;
+    }
+    if (data.startsWith('adm_chtype|')) {
+      var p4 = data.split('|');
+      var k4 = p4[1]; var i4 = parseInt(p4[2]);
+      var d4 = await ref.getRef();
+      var its4 = d4[k4] || [];
+      var cur4 = its4[i4];
+      if (!cur4 || typeof cur4 !== 'object') { await this.bot.sendMessage(chatId, '\u274c Error'); return; }
+      var other4 = cur4.type === 'sanatorium' ? 'exhibition' : 'sanatorium';
+      var oLabel = (ref.TYPE_LABELS || {})[other4] || other4;
+      var cLabel = (ref.TYPE_LABELS || {})[cur4.type] || cur4.type;
+      await this.bot.sendMessage(chatId, '\ud83c\udfab \u0422\u0438\u043f \u00ab' + cur4.name + '\u00bb: ' + cLabel + '\n\n\u041f\u043e\u043c\u0435\u043d\u044f\u0442\u044c \u043d\u0430:', {
+        reply_markup: { inline_keyboard: [[{ text: '\ud83c\udfab ' + oLabel, callback_data: 'adm_settype|' + k4 + '|' + i4 + '|' + other4 }], [{ text: '\u21a9\ufe0f \u041e\u0442\u043c\u0435\u043d\u0430', callback_data: 'adm_pick|' + k4 + '|' + i4 }]] }
+      });
+      return;
+    }
+    if (data.startsWith('adm_settype|')) {
+      var p5 = data.split('|');
+      var k5 = p5[1]; var i5 = parseInt(p5[2]); var nt5 = p5[3];
+      var d5 = await ref.getRef();
+      var its5 = d5[k5] || [];
+      if (its5[i5] && typeof its5[i5] === 'object') {
+        its5[i5].type = nt5;
+        await ref.save(d5);
+        var tl5 = (ref.TYPE_LABELS || {})[nt5] || nt5;
+        await this.bot.sendMessage(chatId, '\u2705 \u0422\u0438\u043f \u00ab' + its5[i5].name + '\u00bb \u0438\u0437\u043c\u0435\u043d\u0451\u043d \u043d\u0430: ' + tl5);
+      } else { await this.bot.sendMessage(chatId, '\u274c Error'); }
+      await this.showRefSection(chatId, k5);
+      return;
+    }
     if (data.startsWith('adm_pick|')) {
-      const parts = data.split('|');
-      const key = parts[1];
-      const idx = parseInt(parts[2]);
+      var parts = data.split('|');
+      var key = parts[1];
+      var idx = parseInt(parts[2]);
       await this.showPickMenu(chatId, userId, key, idx);
       return;
     }
