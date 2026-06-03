@@ -6,8 +6,7 @@ function calculateTotalRevenue(payload = {}) {
   return Number(payload.cash || 0) +
     Number(payload.cashless || 0) +
     Number(payload.credit || 0) +
-    Number(payload.encashment || 0) +
-    Number(payload.businessTripAllowance || 0);
+    Number(payload.encashment || 0);
 }
 
 function validateTotals(itemsTotal, declaredTotal) {
@@ -52,13 +51,13 @@ function formatPreviewReport(session = {}) {
     `💳 Безналичные: ${session.cashless || 0} ₽\n` +
     `🏦 Кредит/Рассрочка: ${session.credit || 0} ₽\n` +
     `🚚 Инкассация: ${session.encashment || 0} ₽\n` +
+    `${session.receiptUrl ? `📸 Чек: ${session.receiptUrl}\n` : ''}` +
     `🧳 Командировочная: ${session.businessTripAllowance || 0} ₽\n` +
     `📊 Итого: ${data.totalRevenue} ₽\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `📦 Товары (${data.itemsCount}):\n${data.itemsList}\n` +
     `💰 Сумма товаров: ${data.itemsTotal} ₽` +
     `${data.mismatch}\n` +
-    `${session.receiptUrl ? `📸 Чек: ${session.receiptUrl}\n` : ''}` +
     `━━━━━━━━━━━━━━━━━━━━\n\n` +
     `Подтвердить отправку?`;
 }
@@ -76,15 +75,16 @@ function formatFinalReport(session = {}) {
     `🏙️ ${session.city}\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `💰 Налич: ${session.cash || 0} | 💳 Безнал: ${session.cashless || 0}\n` +
-    `🏦 Кредит: ${session.credit || 0} | 🚚 Инкассация: ${session.encashment || 0}\n` +
-    `🧳 Командировочная: ${session.businessTripAllowance || 0} ₽\n` +
-    `📊 Итого: ${data.totalRevenue} ₽\n` +
-    `━━━━━━━━━━━━━━━━━━━━\n` +
-    `📦 Товары (${(session.items || []).length}):\n${itemsSummary}\n` +
-    `💰 Сумма товаров: ${data.itemsTotal} ₽\n` +
-    `${session.receiptUrl ? `📸 Чек: ${session.receiptUrl}\n` : ''}` +
-    `━━━━━━━━━━━━━━━━━━━━\n\n` +
-    `Для новой записи — /start`;
+      `🏦 Кредит: ${session.credit || 0} | 🚚 Инкассация: ${session.encashment || 0}\n` +
+      // Чек теперь выводится сразу после финансовых сумм, перед командировочной надбавкой
+      `${session.receiptUrl ? `📸 Чек: ${session.receiptUrl}\n` : ''}` +
+      `🧳 Командировочная: ${session.businessTripAllowance || 0} ₽\n` +
+      `📊 Итого: ${data.totalRevenue} ₽\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `📦 Товары (${(session.items || []).length}):\n${itemsSummary}\n` +
+      `💰 Сумма товаров: ${data.itemsTotal} ₽\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `Для новой записи — /start`;
 }
 
 module.exports = {
