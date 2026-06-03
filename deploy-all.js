@@ -16,6 +16,7 @@ const files = [
   { local: path.join(__dirname, 'bot.js'), remote: '/opt/impulse-bot/bot.js' },
   { local: path.join(__dirname, 'services', 'refDictionary.js'), remote: '/opt/impulse-bot/services/refDictionary.js' },
   { local: path.join(__dirname, 'controllers', 'admin.js'), remote: '/opt/impulse-bot/controllers/admin.js' },
+  { local: path.join(__dirname, 'controllers', 'report.js'), remote: '/opt/impulse-bot/controllers/report.js' },
   { local: path.join(__dirname, 'webchat', 'server.js'), remote: '/opt/impulse-bot/webchat/server.js' },
 ];
 
