@@ -5,8 +5,7 @@ const cart = require('./cart');
 function calculateTotalRevenue(payload = {}) {
   return Number(payload.cash || 0) +
     Number(payload.cashless || 0) +
-    Number(payload.credit || 0) +
-    Number(payload.encashment || 0);
+    Number(payload.credit || 0);
 }
 
 function validateTotals(itemsTotal, declaredTotal) {
