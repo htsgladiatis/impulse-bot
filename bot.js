@@ -5,6 +5,7 @@ const yandexDisk = require('./services/yandexDisk');
 const ref = require('./services/refDictionary');
 const cart = require('./controllers/cart');
 const report = require('./controllers/report');
+const { DateFormatter, DateValidator, TimestampGenerator, MONTHS_RU, DAYS_RU, CALENDAR_LABELS } = require('./utils/dateUtils');
 
 // Длинные названия товаров — будут в 1 колонку
 const LONG_PRODUCTS = [
@@ -59,6 +60,94 @@ function paginatedButtons(list, page, pageSize, extraRow) {
   if (extraRow) rows.push(extraRow);
 
   return { inline_keyboard: rows };
+}
+
+/**
+ * Build calendar keyboard for Telegram
+ * @param {number} year - Year to display
+ * @param {number} month - Month to display (0-11)
+ * @param {string} selectedDate - Currently selected date (ISO format YYYY-MM-DD)
+ * @returns {Object} Telegram inline keyboard
+ */
+function buildCalendarKeyboard(year, month, selectedDate) {
+  const rows = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const maxPastDate = new Date(today);
+  maxPastDate.setDate(maxPastDate.getDate() - 90);
+  
+  // Header row: navigation
+  rows.push([
+    { text: '◄◄', callback_data: 'cal|prev_year' },
+    { text: '◄', callback_data: 'cal|prev_month' },
+    { text: `${MONTHS_RU[month]} ${year}`, callback_data: 'cal|noop' },
+    { text: '►', callback_data: 'cal|next_month' },
+    { text: '►►', callback_data: 'cal|next_year' }
+  ]);
+  
+  // Day headers
+  rows.push(DAYS_RU.map(day => ({ 
+    text: day, 
+    callback_data: 'cal|noop' 
+  })));
+  
+  // Calculate first day of month (0 = Sunday, 1 = Monday, etc.)
+  const firstDay = new Date(year, month, 1).getDay();
+  const adjustedFirstDay = firstDay === 0 ? 6 : firstDay - 1; // Monday = 0
+  
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  
+  // Build calendar grid
+  let dayCounter = 1;
+  for (let week = 0; week < 6; week++) {
+    const weekRow = [];
+    
+    for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
+      if ((week === 0 && dayOfWeek < adjustedFirstDay) || dayCounter > daysInMonth) {
+        weekRow.push({ text: ' ', callback_data: 'cal|noop' });
+      } else {
+        const cellDate = new Date(year, month, dayCounter);
+        const isoDate = cellDate.toISOString().split('T')[0];
+        const isToday = cellDate.getTime() === today.getTime();
+        const isSelected = isoDate === selectedDate;
+        const isFuture = cellDate > today;
+        const isTooOld = cellDate < maxPastDate;
+        const isDisabled = isFuture || isTooOld;
+        
+        let text = String(dayCounter);
+        if (isToday) text = `[${text}]`;  // Highlight today
+        if (isSelected) text = `✓${text}`;  // Mark selected
+        
+        weekRow.push({
+          text: text,
+          callback_data: isDisabled ? 'cal|noop' : `cal|select|${isoDate}`
+        });
+        
+        dayCounter++;
+      }
+    }
+    
+    rows.push(weekRow);
+    
+    if (dayCounter > daysInMonth) break;
+  }
+  
+  return { inline_keyboard: rows };
+}
+
+/**
+ * Format step message with date header
+ * @param {Object} session - User session
+ * @param {string} stepMessage - The step-specific message
+ * @returns {string} Message with date header
+ */
+function formatMessageWithDate(session, stepMessage) {
+  if (!session.reportDate) {
+    return stepMessage;
+  }
+  const displayDate = DateFormatter.toDisplay(session.reportDate);
+  return `📅 Дата отчёта: ${displayDate}\n\n${stepMessage}`;
 }
 
 class ImpulseBot {
@@ -230,11 +319,145 @@ class ImpulseBot {
     console.log(`📥 /start от ${username} (${userId})`);
 
     this.sessions.set(userId, this.createInitialSession(username));
+    const session = this.sessions.get(userId);
 
-    await this.sendAndReplace(chatId, userId, this.sessions.get(userId),
-      `📅 Дата: ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}\n\n` +
-      `🔢 Шаг 1/10 — Введите номер терминала:`
+    // Show date selection prompt instead of terminal number
+    await this.showDatePrompt(chatId, userId, session);
+  }
+
+  /**
+   * Display date selection prompt
+   * Shows "Today" and "Select Other Date" options
+   */
+  async showDatePrompt(chatId, userId, session) {
+    const today = DateFormatter.toDisplay(session.reportDate);
+    const keyboard = {
+      inline_keyboard: [
+        [{ text: `📅 ${CALENDAR_LABELS.today} (${today})`, callback_data: 'date|today' }],
+        [{ text: `📆 ${CALENDAR_LABELS.selectOther}`, callback_data: 'date|custom' }]
+      ]
+    };
+    
+    await this.sendAndReplace(chatId, userId, session,
+      `📅 ${CALENDAR_LABELS.chooseDate}:`,
+      { reply_markup: keyboard }
     );
+    
+    this.sessions.set(userId, session);
+  }
+
+  /**
+   * Handle date-related callbacks
+   * Routes between "Today" and "Custom Date" flows
+   */
+  async handleDateCallback(chatId, userId, session, data) {
+    if (data === 'date|today') {
+      // User selected "Today" - use current date
+      session.reportDate = new Date().toISOString().split('T')[0];
+      session.step = 'terminal_number';
+      this.sessions.set(userId, session);
+      
+      // Show terminal number prompt
+      await this.sendAndReplace(chatId, userId, session,
+        `📅 Дата отчёта: ${DateFormatter.toDisplay(session.reportDate)}\n\n` +
+        `🔢 Шаг 1/10 — Введите номер терминала:`
+      );
+    } else if (data === 'date|custom') {
+      // User selected "Select Other Date" - show calendar
+      const now = new Date();
+      session._calendarYear = now.getFullYear();
+      session._calendarMonth = now.getMonth();
+      this.sessions.set(userId, session);
+      
+      await this.showCalendar(chatId, userId, session);
+    }
+  }
+
+  /**
+   * Display calendar picker
+   * Shows interactive month/year grid for date selection
+   */
+  async showCalendar(chatId, userId, session) {
+    const year = session._calendarYear || new Date().getFullYear();
+    const month = session._calendarMonth !== undefined ? session._calendarMonth : new Date().getMonth();
+    
+    const keyboard = buildCalendarKeyboard(year, month, session.reportDate);
+    
+    await this.sendAndReplace(chatId, userId, session,
+      `📆 Выберите дату:\n\n${MONTHS_RU[month]} ${year}`,
+      { reply_markup: keyboard }
+    );
+    
+    this.sessions.set(userId, session);
+  }
+
+  /**
+   * Handle calendar navigation
+   * Process month/year navigation and date selection
+   */
+  async handleCalendarNavigation(chatId, userId, session, query, data) {
+    const [_, action, value] = data.split('|');
+    
+    switch (action) {
+      case 'prev_month':
+        session._calendarMonth--;
+        if (session._calendarMonth < 0) {
+          session._calendarMonth = 11;
+          session._calendarYear--;
+        }
+        await this.showCalendar(chatId, userId, session);
+        break;
+        
+      case 'next_month':
+        session._calendarMonth++;
+        if (session._calendarMonth > 11) {
+          session._calendarMonth = 0;
+          session._calendarYear++;
+        }
+        await this.showCalendar(chatId, userId, session);
+        break;
+        
+      case 'prev_year':
+        session._calendarYear--;
+        await this.showCalendar(chatId, userId, session);
+        break;
+        
+      case 'next_year':
+        session._calendarYear++;
+        await this.showCalendar(chatId, userId, session);
+        break;
+        
+      case 'select':
+        // User selected a date
+        const validation = DateValidator.validate(value);
+        if (validation.valid) {
+          session.reportDate = value;
+          session.step = 'terminal_number';
+          
+          // Clear calendar state
+          delete session._calendarMonth;
+          delete session._calendarYear;
+          
+          this.sessions.set(userId, session);
+          
+          // Show terminal number prompt
+          await this.sendAndReplace(chatId, userId, session,
+            `📅 Дата отчёта: ${DateFormatter.toDisplay(session.reportDate)}\n\n` +
+            `🔢 Шаг 1/10 — Введите номер терминала:`
+          );
+        } else {
+          // Show error alert
+          await this.bot.answerCallbackQuery(query.id, {
+            text: validation.error,
+            show_alert: true
+          });
+        }
+        break;
+        
+      case 'noop':
+        // Do nothing (disabled dates, headers, etc.)
+        break;
+    }
   }
 
   // ========== CALLBACKS ==========
@@ -245,6 +468,22 @@ class ImpulseBot {
 
     console.log(`📥 Callback: ${data} от ${userId}`);
     await this.bot.answerCallbackQuery(query.id);
+
+    // === DATE callbacks ===
+    if (data.startsWith('date|')) {
+      const session = this.sessions.get(userId);
+      if (!session) return;
+      await this.handleDateCallback(chatId, userId, session, data);
+      return;
+    }
+
+    // === CALENDAR callbacks ===
+    if (data.startsWith('cal|')) {
+      const session = this.sessions.get(userId);
+      if (!session) return;
+      await this.handleCalendarNavigation(chatId, userId, session, query, data);
+      return;
+    }
 
     // === АДМИН callbacks ===
     if (data.startsWith('adm|') || data.startsWith('adm_add|') || data.startsWith('adm_del|') || data.startsWith('adm_delitem|') || data.startsWith('adm_pick|') || data.startsWith('adm_totop|') || data.startsWith('adm_up10|') || data.startsWith('adm_down10|') || data.startsWith('adm_askpos|') || data.startsWith('adm_type|') || data.startsWith('adm_city|') || data.startsWith('adm_chcity|') || data.startsWith('adm_chtype|') || data.startsWith('adm_setcity|') || data.startsWith('adm_settype|')) {
@@ -433,6 +672,7 @@ class ImpulseBot {
     }
 
     if (data.startsWith('adm_del|')) {
+      const key = data.split('|')[1];
       const data2 = await ref.getRef();
       const items = data2[key] || [];
       if (items.length === 0) {
@@ -1031,7 +1271,72 @@ class ImpulseBot {
   }
 
   createInitialSession(platform) {
-    return { step: 'terminal_number', platform, timestamp: new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' }), items: [], lastMsgId: null };
+    const today = new Date();
+    const reportDate = today.toISOString().split('T')[0]; // YYYY-MM-DD format
+    return { 
+      step: 'date_select',  // Changed from 'terminal_number' to 'date_select'
+      platform, 
+      reportDate: reportDate,  // NEW: Selected report date (ISO 8601)
+      timestamp: new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' }), 
+      items: [], 
+      lastMsgId: null,
+      // Calendar state (temporary, cleared after selection)
+      _calendarMonth: null,
+      _calendarYear: null
+    };
+  }
+
+  /**
+   * Validate and repair session state
+   * Ensures reportDate exists and is valid
+   */
+  validateAndRepairSession(session) {
+    if (!session) return session;
+    
+    // Ensure reportDate exists
+    if (!session.reportDate) {
+      console.warn('[Session Repair] Missing reportDate, setting to today');
+      session.reportDate = new Date().toISOString().split('T')[0];
+    }
+    
+    // Validate reportDate format (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(session.reportDate)) {
+      console.warn('[Session Repair] Invalid reportDate format:', session.reportDate);
+      session.reportDate = new Date().toISOString().split('T')[0];
+    }
+    
+    // Validate date is not in future
+    const reportDate = new Date(session.reportDate + 'T00:00:00');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    if (reportDate > today) {
+      console.warn('[Session Repair] Future reportDate detected:', session.reportDate);
+      session.reportDate = today.toISOString().split('T')[0];
+    }
+    
+    // Validate date is not too old (90 days)
+    const maxPastDate = new Date(today);
+    maxPastDate.setDate(maxPastDate.getDate() - 90);
+    
+    if (reportDate < maxPastDate) {
+      console.warn('[Session Repair] Too old reportDate detected:', session.reportDate);
+      session.reportDate = today.toISOString().split('T')[0];
+    }
+    
+    return session;
+  }
+
+  /**
+   * Get session with automatic validation and repair
+   * @param {number} userId - Telegram user ID
+   * @returns {Object|null} Validated session or null
+   */
+  getSession(userId) {
+    const session = this.sessions.get(userId);
+    if (!session) return null;
+    return this.validateAndRepairSession(session);
   }
 
   ensureTransactionId(session) {
@@ -1041,12 +1346,25 @@ class ImpulseBot {
 
   buildSaleRecord(session, userId) {
     this.ensureTransactionId(session);
+    
+    // Generate timestamp using selected reportDate + current time
+    const timestamp = TimestampGenerator.generate(session.reportDate);
+    
     return {
-      transactionId: session.transactionId, timestamp: session.timestamp, telegramId: userId,
-      username: session.username, terminalNumber: session.terminalNumber, manager: session.manager,
-      channel: session.channel, city: session.city, terminal: session.terminal,
-      cash: session.cash || 0, cashless: session.cashless || 0, credit: session.credit || 0,
-      encashment: session.encashment || 0, businessTripAllowance: session.businessTripAllowance || 0,
+      transactionId: session.transactionId, 
+      timestamp: timestamp,  // CHANGED: now uses reportDate
+      telegramId: userId,
+      username: session.username, 
+      terminalNumber: session.terminalNumber, 
+      manager: session.manager,
+      channel: session.channel, 
+      city: session.city, 
+      terminal: session.terminal,
+      cash: session.cash || 0, 
+      cashless: session.cashless || 0, 
+      credit: session.credit || 0,
+      encashment: session.encashment || 0, 
+      businessTripAllowance: session.businessTripAllowance || 0,
       totalRevenue: report.calculateTotalRevenue(session),
       receiptUrl: session.receiptUrl || '',
     };
