@@ -709,17 +709,8 @@
       }
       container.appendChild(navDiv);
       
-      // Next 7 are day headers
-      for (let i = 5; i < 12; i++) {
-        const btn = buttons[i];
-        const el = document.createElement('div');
-        el.className = 'calendar-header';
-        el.textContent = btn.text;
-        container.appendChild(el);
-      }
-      
-      // Rest are calendar days
-      for (let i = 12; i < buttons.length; i++) {
+      // Calendar days start after navigation (index 5)
+      for (let i = 5; i < buttons.length; i++) {
         const btn = buttons[i];
         const el = document.createElement('div');
         el.className = 'calendar-day';

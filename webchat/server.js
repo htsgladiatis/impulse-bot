@@ -606,10 +606,7 @@ function buildCalendarButtons(year, month, selectedDate) {
   buttons.push({ text: '►', value: 'cal|next_month' });
   buttons.push({ text: '►►', value: 'cal|next_year' });
   
-  // Day headers
-  DAYS_RU.forEach(day => {
-    buttons.push({ text: day, value: 'cal|noop', header: true });
-  });
+  // Day headers removed - showing only numbers
   
   // Calculate first day
   const firstDay = new Date(year, month, 1).getDay();
