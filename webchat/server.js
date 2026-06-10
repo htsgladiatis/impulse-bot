@@ -10,6 +10,7 @@ const ref = require('../services/refDictionary');
 const sheets = require('../services/googleSheets');
 const cart = require('../controllers/cart');
 const report = require('../controllers/report');
+const { DateFormatter, DateValidator, TimestampGenerator, MONTHS_RU, DAYS_RU, CALENDAR_LABELS } = require('../utils/dateUtils');
 
 const app = express();
 const server = http.createServer(app);
@@ -49,6 +50,7 @@ function sendBot(socket, session, text, opts = {}) {
     stepNum: opts.stepNum || null,
     buttons: opts.buttons || null,
     paginated: opts.paginated || false,
+    calendar: opts.calendar || false,
     fileUpload: opts.fileUpload || false,
     backButton: opts.backButton || null
   });
@@ -62,10 +64,16 @@ io.on('connection', (socket) => {
   session._socketId = socket.id;
   sessions.set(socket.id, session);
 
+  // Show date selection prompt
+  const today = DateFormatter.toDisplay(session.reportDate);
   socket.emit('bot_message', {
-    text: `📅 Дата: ${new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' })}\n\n🔢 Шаг 1/11 — Введите номер терминала:`,
-    step: 'terminal_number',
-    stepNum: 1
+    text: `📅 ${CALENDAR_LABELS.chooseDate}:`,
+    step: 'date_select',
+    stepNum: null,
+    buttons: [
+      { text: `📅 ${CALENDAR_LABELS.today} (${today})`, value: 'date|today' },
+      { text: `📆 ${CALENDAR_LABELS.selectOther}`, value: 'date|custom' }
+    ]
   });
 
   socket.on('user_message', async (data) => {
@@ -302,6 +310,33 @@ async function handleText(socket, s, text) {
 async function handleButton(socket, s, value) {
   const r = await getRef();
 
+  // DATE SELECTION
+  if (value === 'date|today') {
+    s.reportDate = new Date().toISOString().split('T')[0];
+    s.timestamp = TimestampGenerator.generate(s.reportDate);
+    s.step = 'terminal_number';
+    sendBot(socket, s, 
+      `📅 Дата отчёта: ${DateFormatter.toDisplay(s.reportDate)}\n\n🔢 Шаг 1/11 — Введите номер терминала:`,
+      { stepNum: 1 }
+    );
+    sessions.set(socket.id, s);
+    return;
+  }
+  
+  if (value === 'date|custom') {
+    s.step = 'calendar';
+    sendCalendar(socket, s);
+    sessions.set(socket.id, s);
+    return;
+  }
+  
+  // CALENDAR NAVIGATION
+  if (value.startsWith('cal|')) {
+    await handleCalendarCallback(socket, s, value);
+    sessions.set(socket.id, s);
+    return;
+  }
+
   switch (s.step) {
     case 'manager':
       s.manager = value;
@@ -455,7 +490,17 @@ async function handleButton(socket, s, value) {
 
 // ========== HELPERS ==========
 function createInitialSession(platform) {
-  return { step: 'terminal_number', platform, timestamp: new Date().toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' }), items: [], lastMsgId: null };
+  const today = new Date().toISOString().split('T')[0];
+  return { 
+    step: 'date_select',  // Changed from 'terminal_number' to 'date_select'
+    reportDate: today,  // ISO format YYYY-MM-DD
+    platform, 
+    timestamp: TimestampGenerator.generate(today),
+    items: [], 
+    lastMsgId: null,
+    _calendarYear: new Date().getFullYear(),
+    _calendarMonth: new Date().getMonth()
+  };
 }
 
 function ensureTransactionId(session) {
@@ -465,12 +510,29 @@ function ensureTransactionId(session) {
 
 function buildSaleRecord(session, userId) {
   ensureTransactionId(session);
+  
+  // Ensure timestamp uses the selected report date
+  if (!session.timestamp || !session.reportDate) {
+    session.reportDate = new Date().toISOString().split('T')[0];
+    session.timestamp = TimestampGenerator.generate(session.reportDate);
+  }
+  
   return {
-    transactionId: session.transactionId, timestamp: session.timestamp, telegramId: userId,
-    username: session.username, terminalNumber: session.terminalNumber, manager: session.manager,
-    channel: session.channel, city: session.city, terminal: session.terminal,
-    cash: session.cash || 0, cashless: session.cashless || 0, credit: session.credit || 0,
-    encashment: session.encashment || 0, businessTripAllowance: session.businessTripAllowance || 0,
+    transactionId: session.transactionId, 
+    timestamp: session.timestamp,
+    reportDate: session.reportDate,  // Add ISO date
+    telegramId: userId,
+    username: session.username, 
+    terminalNumber: session.terminalNumber, 
+    manager: session.manager,
+    channel: session.channel, 
+    city: session.city, 
+    terminal: session.terminal,
+    cash: session.cash || 0, 
+    cashless: session.cashless || 0, 
+    credit: session.credit || 0,
+    encashment: session.encashment || 0, 
+    businessTripAllowance: session.businessTripAllowance || 0,
     totalRevenue: report.calculateTotalRevenue(session),
     receiptUrl: session.receiptUrl || '',
   };
@@ -509,6 +571,143 @@ async function showPreview(socket, s) {
       { text: '✏️ Редактировать', value: 'edit' }
     ]
   });
+}
+
+/**
+ * Send calendar to user
+ */
+function sendCalendar(socket, s) {
+  const year = s._calendarYear || new Date().getFullYear();
+  const month = s._calendarMonth !== undefined ? s._calendarMonth : new Date().getMonth();
+  
+  const calendarButtons = buildCalendarButtons(year, month, s.reportDate);
+  
+  sendBot(socket, s, `📆 Выберите дату:\n\n${MONTHS_RU[month]} ${year}`, {
+    buttons: calendarButtons,
+    calendar: true
+  });
+}
+
+/**
+ * Build calendar buttons for web
+ */
+function buildCalendarButtons(year, month, selectedDate) {
+  const buttons = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const maxPastDate = new Date(today);
+  maxPastDate.setDate(maxPastDate.getDate() - 90);
+  
+  // Navigation row
+  buttons.push({ text: '◄◄', value: 'cal|prev_year' });
+  buttons.push({ text: '◄', value: 'cal|prev_month' });
+  buttons.push({ text: `${MONTHS_RU[month]} ${year}`, value: 'cal|noop' });
+  buttons.push({ text: '►', value: 'cal|next_month' });
+  buttons.push({ text: '►►', value: 'cal|next_year' });
+  
+  // Day headers
+  DAYS_RU.forEach(day => {
+    buttons.push({ text: day, value: 'cal|noop', header: true });
+  });
+  
+  // Calculate first day
+  const firstDay = new Date(year, month, 1).getDay();
+  const adjustedFirstDay = firstDay === 0 ? 6 : firstDay - 1;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  
+  // Build calendar grid
+  let dayCounter = 1;
+  for (let week = 0; week < 6; week++) {
+    for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
+      if ((week === 0 && dayOfWeek < adjustedFirstDay) || dayCounter > daysInMonth) {
+        buttons.push({ text: ' ', value: 'cal|noop', empty: true });
+      } else {
+        const cellDate = new Date(year, month, dayCounter);
+        const isoDate = cellDate.toISOString().split('T')[0];
+        const isToday = cellDate.getTime() === today.getTime();
+        const isSelected = isoDate === selectedDate;
+        const isFuture = cellDate > today;
+        const isTooOld = cellDate < maxPastDate;
+        const isDisabled = isFuture || isTooOld;
+        
+        let text = String(dayCounter);
+        
+        buttons.push({
+          text: text,
+          value: isDisabled ? 'cal|noop' : `cal|select|${isoDate}`,
+          day: true,
+          disabled: isDisabled
+        });
+        
+        dayCounter++;
+      }
+    }
+    
+    if (dayCounter > daysInMonth) break;
+  }
+  
+  return buttons;
+}
+
+/**
+ * Handle calendar navigation
+ */
+async function handleCalendarCallback(socket, s, value) {
+  const parts = value.split('|');
+  const action = parts[1];
+  const dateValue = parts[2];
+  
+  switch (action) {
+    case 'prev_month':
+      s._calendarMonth--;
+      if (s._calendarMonth < 0) {
+        s._calendarMonth = 11;
+        s._calendarYear--;
+      }
+      sendCalendar(socket, s);
+      break;
+      
+    case 'next_month':
+      s._calendarMonth++;
+      if (s._calendarMonth > 11) {
+        s._calendarMonth = 0;
+        s._calendarYear++;
+      }
+      sendCalendar(socket, s);
+      break;
+      
+    case 'prev_year':
+      s._calendarYear--;
+      sendCalendar(socket, s);
+      break;
+      
+    case 'next_year':
+      s._calendarYear++;
+      sendCalendar(socket, s);
+      break;
+      
+    case 'select':
+      const validation = DateValidator.validate(dateValue);
+      if (validation.valid) {
+        s.reportDate = dateValue;
+        s.timestamp = TimestampGenerator.generate(dateValue);
+        s.step = 'terminal_number';
+        
+        delete s._calendarMonth;
+        delete s._calendarYear;
+        
+        sendBot(socket, s,
+          `📅 Дата отчёта: ${DateFormatter.toDisplay(s.reportDate)}\n\n🔢 Шаг 1/11 — Введите номер терминала:`,
+          { stepNum: 1 }
+        );
+      }
+      break;
+      
+    case 'noop':
+      // Do nothing
+      break;
+  }
 }
 
 async function finalSubmit(socket, s) {

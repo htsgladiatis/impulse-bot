@@ -201,6 +201,70 @@
     .btn:active { transform: scale(0.96); background: var(--btn-hover-bg); }
     .btn.full-width { width: 100%; text-align: center; justify-content: center; }
 
+    /* Calendar styles */
+    .calendar-container { 
+      display: grid; 
+      grid-template-columns: repeat(7, 1fr); 
+      gap: 4px; 
+      max-width: 92%; 
+      animation: fadeIn 0.2s ease; 
+      align-self: flex-start;
+      padding: 8px;
+      background: var(--msg-bot-bg);
+      border: 1px solid var(--msg-bot-border);
+      border-radius: 12px;
+    }
+    .calendar-nav {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+    .calendar-nav .btn {
+      padding: 8px 6px;
+      font-size: 12px;
+      min-height: 36px;
+      text-align: center;
+      justify-content: center;
+    }
+    .calendar-header {
+      padding: 6px 4px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--label-color);
+    }
+    .calendar-day {
+      padding: 8px 4px;
+      background: var(--btn-bg);
+      border: 1px solid var(--btn-border);
+      border-radius: 8px;
+      color: var(--btn-color);
+      font-size: 13px;
+      cursor: pointer;
+      text-align: center;
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .calendar-day:hover:not(.disabled):not(.empty) {
+      background: var(--btn-hover-bg);
+      border-color: var(--btn-hover-border);
+    }
+    .calendar-day:active:not(.disabled):not(.empty) {
+      transform: scale(0.96);
+    }
+    .calendar-day.disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+    .calendar-day.empty {
+      visibility: hidden;
+    }
+
     .paginated-container { display: flex; flex-direction: column; gap: 5px; max-width: 92%; animation: fadeIn 0.2s ease; align-self: flex-start; }
     .paginated-item {
       padding: 10px 14px; background: var(--pag-item-bg); border: 1px solid var(--pag-item-border);
@@ -542,10 +606,12 @@
 
       // Add buttons
       if (data.buttons && data.buttons.length > 0) {
-        if (data.paginated) {
-          addPaginatedButtons(data.buttons);
+        if (data.calendar) {
+          addCalendar(data.buttons);
+        } else if (data.paginated) {
+          addPaginatedButtons(data.buttons, data.backButton || null);
         } else {
-          addButtons(data.buttons);
+          addButtons(data.buttons, data.backButton || null);
         }
       }
 
@@ -587,7 +653,7 @@
     }
 
     // Add regular buttons
-    function addButtons(buttons) {
+    function addButtons(buttons, backButton) {
       const container = document.createElement('div');
       container.className = 'buttons-container';
       buttons.forEach(btn => {
@@ -603,12 +669,84 @@
         });
         container.appendChild(el);
       });
+      if (backButton) {
+        const backEl = document.createElement('button');
+        backEl.className = 'btn btn-back';
+        backEl.textContent = backButton.text;
+        backEl.addEventListener('click', () => {
+          addMessage(backEl.textContent, 'user');
+          socket.emit('button_click', { value: backButton.value });
+          container.remove();
+          showTyping();
+          scrollToBottom();
+        });
+        container.appendChild(backEl);
+      }
+      chatArea.appendChild(container);
+      scrollToBottom();
+    }
+
+    // Add calendar
+    function addCalendar(buttons) {
+      const container = document.createElement('div');
+      container.className = 'calendar-container';
+      
+      // First 5 buttons are navigation
+      const navDiv = document.createElement('div');
+      navDiv.className = 'calendar-nav';
+      for (let i = 0; i < 5; i++) {
+        const btn = buttons[i];
+        const el = document.createElement('button');
+        el.className = 'btn';
+        el.textContent = btn.text;
+        if (btn.value !== 'cal|noop') {
+          el.addEventListener('click', () => {
+            socket.emit('button_click', { value: btn.value });
+            // Don't remove container for navigation, just wait for update
+          });
+        }
+        navDiv.appendChild(el);
+      }
+      container.appendChild(navDiv);
+      
+      // Next 7 are day headers
+      for (let i = 5; i < 12; i++) {
+        const btn = buttons[i];
+        const el = document.createElement('div');
+        el.className = 'calendar-header';
+        el.textContent = btn.text;
+        container.appendChild(el);
+      }
+      
+      // Rest are calendar days
+      for (let i = 12; i < buttons.length; i++) {
+        const btn = buttons[i];
+        const el = document.createElement('div');
+        el.className = 'calendar-day';
+        if (btn.empty) el.classList.add('empty');
+        if (btn.disabled) el.classList.add('disabled');
+        el.textContent = btn.text;
+        
+        if (!btn.empty && !btn.disabled && btn.value !== 'cal|noop') {
+          el.addEventListener('click', () => {
+            const displayText = btn.text.replace(/[\[\]✓]/g, '').trim();
+            addMessage('📅 ' + displayText, 'user');
+            socket.emit('button_click', { value: btn.value });
+            container.remove();
+            showTyping();
+            scrollToBottom();
+          });
+        }
+        
+        container.appendChild(el);
+      }
+      
       chatArea.appendChild(container);
       scrollToBottom();
     }
 
     // Add paginated buttons
-    function addPaginatedButtons(allButtons) {
+    function addPaginatedButtons(allButtons, backButton) {
       const PAGE_SIZE = 6;
       let currentPage = 0;
       const totalPages = Math.ceil(allButtons.length / PAGE_SIZE);
@@ -660,6 +798,23 @@
           }
 
           container.appendChild(navRow);
+        }
+
+        if (backButton) {
+          const backRow = document.createElement('div');
+          backRow.className = 'paginated-nav back-row';
+          const backEl = document.createElement('button');
+          backEl.textContent = backButton.text;
+          backEl.style.width = '100%';
+          backEl.addEventListener('click', () => {
+            addMessage(backEl.textContent, 'user');
+            socket.emit('button_click', { value: backButton.value });
+            container.remove();
+            showTyping();
+            scrollToBottom();
+          });
+          backRow.appendChild(backEl);
+          container.appendChild(backRow);
         }
       }
 
