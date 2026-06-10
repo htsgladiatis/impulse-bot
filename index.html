@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Impulse Bot — Учёт продаж</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+    }
+    .container {
+      text-align: center;
+      padding: 2rem;
+      max-width: 600px;
+    }
+    .logo {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+      font-weight: 700;
+    }
+    .subtitle {
+      font-size: 1.2rem;
+      opacity: 0.9;
+      margin-bottom: 2rem;
+    }
+    .buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 1rem 2rem;
+      border-radius: 12px;
+      text-decoration: none;
+      font-size: 1.1rem;
+      font-weight: 600;
+      transition: transform 0.2s, box-shadow 0.2s;
+      color: #fff;
+    }
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+    }
+    .btn-telegram {
+      background: #27a7e7;
+    }
+    .btn-web {
+      background: #28a745;
+    }
+    .btn-admin {
+      background: rgba(255,255,255,0.2);
+      border: 2px solid rgba(255,255,255,0.3);
+    }
+    .features {
+      margin-top: 3rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+    }
+    .feature {
+      background: rgba(255,255,255,0.1);
+      padding: 1rem;
+      border-radius: 10px;
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+    }
+    .feature-icon {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+    }
+    .feature-text {
+      font-size: 0.9rem;
+      opacity: 0.9;
+    }
+    @media (max-width: 480px) {
+      h1 { font-size: 1.8rem; }
+      .subtitle { font-size: 1rem; }
+      .btn { font-size: 1rem; padding: 0.8rem 1.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">📊</div>
+    <h1>Impulse Bot</h1>
+    <p class="subtitle">Система учёта продаж для выставок и санаториев</p>
+
+    <div class="buttons">
+      <a href="https://t.me/ImpulseDeviceBot" class="btn btn-telegram" target="_blank" rel="noopener noreferrer">
+        📱 Открыть в Telegram
+      </a>
+      <a href="http://109.69.22.112:3002/webchat" class="btn btn-web" target="_blank" rel="noopener noreferrer">
+        🌐 Веб-версия (без установки)
+      </a>
+      <a href="https://docs.google.com/spreadsheets/d/17Sw8CIV1CUlmbSkdyKH4Kc7s8Bk7uJGhTIXOxd9AzUk" class="btn btn-admin" target="_blank" rel="noopener noreferrer">
+        📋 Google Sheets (отчёты)
+      </a>
+    </div>
+
+    <div class="features">
+      <div class="feature">
+        <div class="feature-icon">📅</div>
+        <div class="feature-text">Выбор даты отчёта</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📷</div>
+        <div class="feature-text">Фото чеков</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📦</div>
+        <div class="feature-text">Учёт товаров</div>
+      </div>
+      <div class="feature">
+        <div class="feature-icon">📊</div>
+        <div class="feature-text">Google Sheets</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
