@@ -201,6 +201,70 @@
     .btn:active { transform: scale(0.96); background: var(--btn-hover-bg); }
     .btn.full-width { width: 100%; text-align: center; justify-content: center; }
 
+    /* Calendar styles */
+    .calendar-container { 
+      display: grid; 
+      grid-template-columns: repeat(7, 1fr); 
+      gap: 4px; 
+      max-width: 92%; 
+      animation: fadeIn 0.2s ease; 
+      align-self: flex-start;
+      padding: 8px;
+      background: var(--msg-bot-bg);
+      border: 1px solid var(--msg-bot-border);
+      border-radius: 12px;
+    }
+    .calendar-nav {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 4px;
+      margin-bottom: 4px;
+    }
+    .calendar-nav .btn {
+      padding: 8px 6px;
+      font-size: 12px;
+      min-height: 36px;
+      text-align: center;
+      justify-content: center;
+    }
+    .calendar-header {
+      padding: 6px 4px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--label-color);
+    }
+    .calendar-day {
+      padding: 8px 4px;
+      background: var(--btn-bg);
+      border: 1px solid var(--btn-border);
+      border-radius: 8px;
+      color: var(--btn-color);
+      font-size: 13px;
+      cursor: pointer;
+      text-align: center;
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+    .calendar-day:hover:not(.disabled):not(.empty) {
+      background: var(--btn-hover-bg);
+      border-color: var(--btn-hover-border);
+    }
+    .calendar-day:active:not(.disabled):not(.empty) {
+      transform: scale(0.96);
+    }
+    .calendar-day.disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+    .calendar-day.empty {
+      visibility: hidden;
+    }
+
     .paginated-container { display: flex; flex-direction: column; gap: 5px; max-width: 92%; animation: fadeIn 0.2s ease; align-self: flex-start; }
     .paginated-item {
       padding: 10px 14px; background: var(--pag-item-bg); border: 1px solid var(--pag-item-border);
@@ -422,16 +486,20 @@
 
     function fixBottomBar() {
       if (!visualViewport) return;
+      // On iOS/Android, when keyboard opens, visualViewport.height shrinks
+      // but layout viewport stays the same → bottom bar gets hidden
       const viewportHeight = visualViewport.height;
       const viewportTop = visualViewport.offsetTop || 0;
       const windowHeight = window.innerHeight;
 
+      // If viewport is significantly smaller than window → keyboard is open
       if (viewportHeight < windowHeight - 100) {
         bottomBar.style.position = 'fixed';
         bottomBar.style.bottom = '0';
         bottomBar.style.left = '0';
         bottomBar.style.right = '0';
         bottomBar.style.zIndex = '50';
+        // Ensure chat area has enough bottom padding so messages aren't hidden
         const barHeight = bottomBar.offsetHeight;
         document.getElementById('chatArea').style.paddingBottom = barHeight + 'px';
       } else {
@@ -449,6 +517,7 @@
       visualViewport.addEventListener('scroll', fixBottomBar);
     }
 
+    // Also handle focus/blur on input as fallback
     const messageInputEl = document.getElementById('messageInput');
     messageInputEl.addEventListener('focus', () => {
       setTimeout(fixBottomBar, 100);
@@ -467,8 +536,12 @@
     });
 
     // ===== SOCKET & CHAT =====
+    // Персональная ссылка вида /webchat/?code=XXXX — код уходит на сервер,
+    // который предзаполняет менеджера и пропускает шаг выбора.
+    const entryCode = new URLSearchParams(window.location.search).get('code') || '';
     const socket = io('https://109-69-22-112.nip.io', {
       path: '/webchat-ws',
+      query: entryCode ? { code: entryCode } : {},
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 50,
@@ -513,52 +586,40 @@
       connectionStatus.style.color = '#e74c3c';
     });
     socket.on('connect_error', (err) => {
-      let msg = err.message || '';
-      if (msg.includes('xhr poll error') || msg.includes('websocket error')) {
-        msg = 'Не удаётся подключиться к серверу. Попробуйте обновить страницу или проверьте соединение.';
-      }
-      connectionStatus.textContent = '● ' + escapeHTML(msg);
+      connectionStatus.textContent = '● Ошибка: ' + escapeHTML(err.message);
       connectionStatus.style.color = '#e74c3c';
-      if (!document.getElementById('retryBtn')) {
-        const retryBtn = document.createElement('button');
-        retryBtn.id = 'retryBtn';
-        retryBtn.textContent = '🔄 Переподключиться';
-        retryBtn.style.marginLeft = '10px';
-        retryBtn.style.padding = '4px 10px';
-        retryBtn.style.fontSize = '12px';
-        retryBtn.style.cursor = 'pointer';
-        retryBtn.onclick = () => { retryBtn.remove(); socket.connect(); };
-        connectionStatus.parentNode.insertBefore(retryBtn, connectionStatus.nextSibling);
-      }
-    });
-    socket.on('connect', () => {
-      const retryBtn = document.getElementById('retryBtn');
-      if (retryBtn) retryBtn.remove();
     });
 
     // Bot message handler
     socket.on('bot_message', (data) => {
       if (welcomeScreen) { welcomeScreen.classList.add('hidden'); progressBar.style.display = 'block'; }
 
+      // Remove typing indicator
       const typingEl = document.querySelector('.typing.active');
       if (typingEl) typingEl.remove();
 
+      // Add message
       addMessage(data.text, 'bot');
 
+      // Update progress
       if (data.stepNum) {
         const p = (data.stepNum / 10) * 100;
         progressFill.style.width = p + '%';
         progressLabel.textContent = 'Шаг ' + data.stepNum + ' из 10';
       }
 
+      // Add buttons
       if (data.buttons && data.buttons.length > 0) {
-        if (data.paginated) {
-          addPaginatedButtons(data.buttons);
+        if (data.calendar) {
+          addCalendar(data.buttons);
+        } else if (data.paginated) {
+          addPaginatedButtons(data.buttons, data.backButton || null);
         } else {
-          addButtons(data.buttons);
+          addButtons(data.buttons, data.backButton || null);
         }
       }
 
+      // File upload
       if (data.fileUpload) {
         fileUploadArea.classList.add('active');
         fileLabel.style.display = 'block';
@@ -568,6 +629,7 @@
         fileUploadArea.classList.remove('active');
       }
 
+      // Focus input
       messageInput.focus();
       scrollToBottom();
     });
@@ -595,7 +657,7 @@
     }
 
     // Add regular buttons
-    function addButtons(buttons) {
+    function addButtons(buttons, backButton) {
       const container = document.createElement('div');
       container.className = 'buttons-container';
       buttons.forEach(btn => {
@@ -611,12 +673,75 @@
         });
         container.appendChild(el);
       });
+      if (backButton) {
+        const backEl = document.createElement('button');
+        backEl.className = 'btn btn-back';
+        backEl.textContent = backButton.text;
+        backEl.addEventListener('click', () => {
+          addMessage(backEl.textContent, 'user');
+          socket.emit('button_click', { value: backButton.value });
+          container.remove();
+          showTyping();
+          scrollToBottom();
+        });
+        container.appendChild(backEl);
+      }
+      chatArea.appendChild(container);
+      scrollToBottom();
+    }
+
+    // Add calendar
+    function addCalendar(buttons) {
+      const container = document.createElement('div');
+      container.className = 'calendar-container';
+      
+      // First 5 buttons are navigation
+      const navDiv = document.createElement('div');
+      navDiv.className = 'calendar-nav';
+      for (let i = 0; i < 5; i++) {
+        const btn = buttons[i];
+        const el = document.createElement('button');
+        el.className = 'btn';
+        el.textContent = btn.text;
+        if (btn.value !== 'cal|noop') {
+          el.addEventListener('click', () => {
+            socket.emit('button_click', { value: btn.value });
+            // Don't remove container for navigation, just wait for update
+          });
+        }
+        navDiv.appendChild(el);
+      }
+      container.appendChild(navDiv);
+      
+      // Calendar days start after navigation (index 5)
+      for (let i = 5; i < buttons.length; i++) {
+        const btn = buttons[i];
+        const el = document.createElement('div');
+        el.className = 'calendar-day';
+        if (btn.empty) el.classList.add('empty');
+        if (btn.disabled) el.classList.add('disabled');
+        el.textContent = btn.text;
+        
+        if (!btn.empty && !btn.disabled && btn.value !== 'cal|noop') {
+          el.addEventListener('click', () => {
+            const displayText = btn.text.replace(/[\[\]✓]/g, '').trim();
+            addMessage('📅 ' + displayText, 'user');
+            socket.emit('button_click', { value: btn.value });
+            container.remove();
+            showTyping();
+            scrollToBottom();
+          });
+        }
+        
+        container.appendChild(el);
+      }
+      
       chatArea.appendChild(container);
       scrollToBottom();
     }
 
     // Add paginated buttons
-    function addPaginatedButtons(allButtons) {
+    function addPaginatedButtons(allButtons, backButton) {
       const PAGE_SIZE = 6;
       let currentPage = 0;
       const totalPages = Math.ceil(allButtons.length / PAGE_SIZE);
@@ -668,6 +793,23 @@
           }
 
           container.appendChild(navRow);
+        }
+
+        if (backButton) {
+          const backRow = document.createElement('div');
+          backRow.className = 'paginated-nav back-row';
+          const backEl = document.createElement('button');
+          backEl.textContent = backButton.text;
+          backEl.style.width = '100%';
+          backEl.addEventListener('click', () => {
+            addMessage(backEl.textContent, 'user');
+            socket.emit('button_click', { value: backButton.value });
+            container.remove();
+            showTyping();
+            scrollToBottom();
+          });
+          backRow.appendChild(backEl);
+          container.appendChild(backRow);
         }
       }
 
@@ -771,4 +913,3 @@
     messageInput.focus();
   </script>
 </body>
-</html>
