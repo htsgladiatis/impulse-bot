@@ -540,7 +540,7 @@
     // Персональная ссылка вида /webchat/?code=XXXX — код уходит на сервер,
     // который предзаполняет менеджера и пропускает шаг выбора.
     const entryCode = new URLSearchParams(window.location.search).get('code') || '';
-    const socket = io('https://109-69-22-112.nip.io', {
+    const socket = io('https://62-192-137-236.nip.io', {
       path: '/webchat-ws',
       query: entryCode ? { code: entryCode } : {},
       reconnection: true,
