@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta name="robots" content="noindex, nofollow">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -165,6 +164,15 @@
       transition: background 0.2s;
     }
     .theme-toggle:hover { background: var(--theme-toggle-hover); }
+
+    .status-btn {
+      height: 36px; min-height: 36px; padding: 0 12px; margin-left: 8px;
+      background: var(--theme-toggle-bg); border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 10px; color: #fff; font-size: 13px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.2s; white-space: nowrap;
+    }
+    .status-btn:hover { background: var(--theme-toggle-hover); }
 
     .progress-bar { background: var(--bg-progress); padding: 8px 16px; border-bottom: 1px solid var(--border-progress); flex-shrink: 0; }
     .progress-track { background: var(--track-bg); border-radius: 10px; height: 5px; overflow: hidden; }
@@ -414,6 +422,7 @@
       <h1>Impulse — Запись продаж</h1>
       <div class="status" id="connectionStatus">Подключение...</div>
     </div>
+    <button class="status-btn" id="shiftStatusBtn" title="Заполнить статус рабочей смены">📋 Статус смены</button>
     <button class="theme-toggle" id="themeToggle" title="Переключить тему">🌙</button>
   </div>
 
@@ -481,6 +490,12 @@
       applyTheme(current === 'dark' ? 'light' : 'dark');
     });
 
+    // Кнопка «Статус смены» в шапке — запрашивает статус рабочей смены у сервера.
+    const shiftStatusBtn = document.getElementById('shiftStatusBtn');
+    shiftStatusBtn.addEventListener('click', () => {
+      socket.emit('request_shift_status');
+    });
+
     // ===== KEYBOARD FIX: visualViewport positioning =====
     const bottomBar = document.getElementById('bottomBar');
     const visualViewport = window.visualViewport;
@@ -540,7 +555,7 @@
     // Персональная ссылка вида /webchat/?code=XXXX — код уходит на сервер,
     // который предзаполняет менеджера и пропускает шаг выбора.
     const entryCode = new URLSearchParams(window.location.search).get('code') || '';
-    const socket = io('https://62-192-137-236.nip.io', {
+    const socket = io('https://31-207-75-83.nip.io', {
       path: '/webchat-ws',
       query: entryCode ? { code: entryCode } : {},
       reconnection: true,
